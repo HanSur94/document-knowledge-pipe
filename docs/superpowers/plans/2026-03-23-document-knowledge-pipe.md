@@ -564,6 +564,7 @@ class TestConvertToPdf:
         mock_run.assert_called_once()
         call_args = mock_run.call_args[0][0]
         assert "--headless" in call_args
+        assert "--norestore" in call_args
         assert "--safe-mode" in call_args
 
     @patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="soffice", timeout=120))
@@ -845,7 +846,7 @@ def extract_markdown(
         stem = pdf_path.stem
         image_paths = sorted(
             p for p in image_dir.iterdir()
-            if p.stem.startswith(stem) or p.stem.startswith("image")
+            if p.stem.startswith(stem)
         )
 
     logger.info(
@@ -927,8 +928,8 @@ class TestGetSurroundingContext:
 
 class TestDescribeImage:
     @pytest.mark.asyncio
-    @patch("docpipe.describer._call_vision_api")
-    async def test_returns_description(self, mock_api: MagicMock, tmp_dirs: dict[str, Path]) -> None:
+    @patch("docpipe.describer._call_vision_api", new_callable=AsyncMock)
+    async def test_returns_description(self, mock_api: AsyncMock, tmp_dirs: dict[str, Path]) -> None:
         mock_api.return_value = "A bar chart showing quarterly revenue."
         img = tmp_dirs["output"] / "images" / "test_img.png"
         img.parent.mkdir(parents=True, exist_ok=True)
@@ -1253,6 +1254,7 @@ Expected: FAIL
 from __future__ import annotations
 
 import asyncio
+import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -1345,24 +1347,30 @@ async def generate_summary(
         f"Document:\n{markdown[:3000]}"
     )
 
-    try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            max_tokens=200,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        content = response.choices[0].message.content or ""
-        summary = ""
-        topics = ""
-        for line in content.splitlines():
-            if line.startswith("SUMMARY:"):
-                summary = line.replace("SUMMARY:", "").strip()
-            elif line.startswith("TOPICS:"):
-                topics = line.replace("TOPICS:", "").strip()
-        return summary or "No summary available", topics or "-"
-    except openai.APIError as e:
-        logger.error("Summary generation failed: %s", e)
-        return "Summary unavailable", "-"
+    delay = retry_cfg.initial_delay_seconds
+    for attempt in range(retry_cfg.max_retries + 1):
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                max_tokens=200,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            content = response.choices[0].message.content or ""
+            summary = ""
+            topics = ""
+            for line in content.splitlines():
+                if line.startswith("SUMMARY:"):
+                    summary = line.replace("SUMMARY:", "").strip()
+                elif line.startswith("TOPICS:"):
+                    topics = line.replace("TOPICS:", "").strip()
+            return summary or "No summary available", topics or "-"
+        except openai.APIError as e:
+            if attempt == retry_cfg.max_retries:
+                logger.error("Summary generation failed after %d retries: %s", attempt + 1, e)
+                return "Summary unavailable", "-"
+            logger.warning("Summary API attempt %d failed: %s", attempt + 1, e)
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, retry_cfg.max_delay_seconds)
 
 
 def build_registry(output_dir: Path) -> str:
@@ -1689,16 +1697,17 @@ import asyncio
 import logging
 import shutil
 from pathlib import Path
+from typing import Any
 
 from docpipe.config import GraphConfig
 
 logger = logging.getLogger(__name__)
 
 
-async def _get_rag_instance(cfg: GraphConfig) -> Any:
+async def _get_rag_instance(cfg: GraphConfig) -> Any:  # noqa: ANN401
     """Create and initialize a LightRAG instance."""
-    from lightrag import LightRAG
-    from lightrag.llm.openai import openai_complete, openai_embed
+    from lightrag import LightRAG  # type: ignore[import-untyped]
+    from lightrag.llm.openai import openai_complete, openai_embed  # type: ignore[import-untyped]
 
     store_dir = Path(cfg.store_dir)
     store_dir.mkdir(parents=True, exist_ok=True)
@@ -1760,10 +1769,6 @@ async def rebuild_graph(markdown_dir: Path, cfg: GraphConfig) -> int:
 
     logger.info("Graph rebuilt: %d documents ingested", count)
     return count
-
-
-# For type checking — lightrag is untyped
-from typing import Any
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -2165,7 +2170,7 @@ class DebouncedHandler(FileSystemEventHandler):
         self._deleted: set[str] = set()
         self._last_event_time: float = 0
         self._first_event_time: float = 0
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._timer: threading.Timer | None = None
 
     def _is_relevant(self, path: Path) -> bool:
@@ -2537,10 +2542,11 @@ def run(config_path: str, dashboard: bool) -> None:
         console.print(f"[green]Watching {cfg.input_dir} (Ctrl+C to stop)[/green]")
 
         if dashboard:
-            with Live(_build_status_table(tracker, cfg), refresh_per_second=0.5, console=console):
+            with Live(_build_status_table(tracker, cfg), refresh_per_second=0.5, console=console) as live:
                 while observer.is_alive():
                     tracker.heartbeat()
                     tracker.save()
+                    live.update(_build_status_table(tracker, cfg))
                     observer.join(timeout=2)
         else:
             while observer.is_alive():
