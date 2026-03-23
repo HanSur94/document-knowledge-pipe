@@ -18,13 +18,19 @@ docpipe ingest --config config.yaml
 
 ## Example Documents
 
-| File | Format | Description |
-|------|--------|-------------|
-| `input/pipeline_guide.pdf` | PDF | 2-page guide with text, headings, and a flow diagram |
-| `input/sample.pdf` | PDF | 3-page document with text content |
-| `input/sample.docx` | DOCX | Word document (requires LibreOffice) |
-| `input/sample.pptx` | PPTX | PowerPoint presentation (requires LibreOffice) |
-| `input/sample.xlsx` | XLSX | Excel spreadsheet (requires LibreOffice) |
+| File | Format | Source | Description |
+|------|--------|--------|-------------|
+| `input/pipeline_guide.pdf` | PDF | Custom | 2-page guide with text, headings, and a flow diagram |
+| `input/sample.pdf` | PDF | freetestdata.com | 3-page document with text content |
+| `input/sample.docx` | DOCX | freetestdata.com | Word document (requires LibreOffice) |
+| `input/sample.pptx` | PPTX | freetestdata.com | PowerPoint presentation (requires LibreOffice) |
+| `input/sample.xlsx` | XLSX | freetestdata.com | Excel spreadsheet (requires LibreOffice) |
+| `input/ffc.doc` | DOC | file-format-commons | Legacy Word document |
+| `input/ffc.ppt` | PPT | file-format-commons | Legacy PowerPoint |
+| `input/ffc.xls` | XLS | file-format-commons | Legacy Excel |
+| `input/ffc.odt` | ODT | file-format-commons | OpenDocument Text |
+| `input/ffc.rtf` | RTF | file-format-commons | Rich Text Format |
+| `input/ffc.html` | HTML | file-format-commons | Web page |
 
 ## Expected Output
 
@@ -75,3 +81,23 @@ docpipe run --config config.yaml --dashboard
 ```
 
 Drop any supported file into `input/` and it will be processed within 60 seconds.
+
+## Bulk Testing with Kaggle Datasets
+
+For large-scale testing, download Kaggle datasets:
+
+```bash
+# Install kaggle CLI and configure API key
+pip install kaggle
+# See: https://www.kaggle.com/docs/api
+
+# List available datasets
+python scripts/download_kaggle_datasets.py --list
+
+# Download all (~1.4 GB)
+python scripts/download_kaggle_datasets.py --output-dir ./data/kaggle
+```
+
+Available datasets:
+- **manisha717/dataset-of-pdf-files** (~806 MB) — diverse PDFs
+- **manisha717/dataset-for-doc-and-docx** (~571 MB) — Word documents
