@@ -37,7 +37,7 @@ class TestGetSurroundingContext:
 
 class TestDescribeImage:
     @pytest.mark.asyncio
-    @patch("docpipe.describer._call_vision_api", new_callable=AsyncMock)
+    @patch("docpipe.describer._call_openai_vision_api", new_callable=AsyncMock)
     async def test_returns_description(
         self, mock_api: AsyncMock, tmp_dirs: dict[str, Path]
     ) -> None:
@@ -59,6 +59,29 @@ class TestDescribeImage:
             ApiRetryConfig(),
         )
         assert result == "A bar chart showing quarterly revenue."
+
+
+class TestDescribeImageAnthropic:
+    @pytest.mark.asyncio
+    @patch("docpipe.describer._call_anthropic_vision_api", new_callable=AsyncMock)
+    async def test_returns_description_anthropic(
+        self, mock_api: AsyncMock, tmp_dirs: dict[str, Path]
+    ) -> None:
+        mock_api.return_value = "A diagram showing system architecture."
+        img = tmp_dirs["output"] / "images" / "test_img.png"
+        img.parent.mkdir(parents=True, exist_ok=True)
+        img.write_bytes(
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+            b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00"
+            b"\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00"
+            b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        result = await describe_image(
+            img, "preceding text", "following text",
+            DescriberConfig(provider="anthropic", model="claude-haiku-4-5-20251001"),
+            ApiRetryConfig(),
+        )
+        assert result == "A diagram showing system architecture."
 
 
 class TestReplaceImageRefs:

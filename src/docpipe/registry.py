@@ -79,9 +79,9 @@ async def generate_summary(
     markdown: str,
     cfg: RegistryConfig,
     retry_cfg: ApiRetryConfig,
+    provider: str = "openai",
 ) -> tuple[str, str]:
-    """Use GPT-4o mini to generate a summary and topic tags."""
-    client = openai.AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", "test-key"))
+    """Use a vision LLM to generate a summary and topic tags."""
     prompt = (
         f"Summarize this document in at most {cfg.summary_max_words} words. "
         "Then list 2-5 topic tags (comma-separated). "
@@ -94,12 +94,34 @@ async def generate_summary(
     delay = retry_cfg.initial_delay_seconds
     for attempt in range(retry_cfg.max_retries + 1):
         try:
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                max_tokens=200,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            content = response.choices[0].message.content or ""
+            content: str
+            if provider == "anthropic":
+                import anthropic
+
+                anthropic_client = anthropic.AsyncAnthropic(
+                    api_key=os.environ.get("ANTHROPIC_API_KEY", "test-key")
+                )
+                anthropic_response = await anthropic_client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=200,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                first_block = anthropic_response.content[0]
+                content = (
+                    first_block.text
+                    if isinstance(first_block, anthropic.types.TextBlock)
+                    else ""
+                )
+            else:
+                openai_client = openai.AsyncOpenAI(
+                    api_key=os.environ.get("OPENAI_API_KEY", "test-key")
+                )
+                openai_response = await openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    max_tokens=200,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                content = openai_response.choices[0].message.content or ""
             summary = ""
             topics = ""
             for line in content.splitlines():
@@ -108,7 +130,7 @@ async def generate_summary(
                 elif line.startswith("TOPICS:"):
                     topics = line.replace("TOPICS:", "").strip()
             return summary or "No summary available", topics or "-"
-        except openai.APIError as e:
+        except Exception as e:
             if attempt == retry_cfg.max_retries:
                 logger.error("Summary generation failed after %d retries: %s", attempt + 1, e)
                 return "Summary unavailable", "-"

@@ -51,6 +51,7 @@ class ExtractorConfig:
 
 @dataclass
 class DescriberConfig:
+    provider: str = "openai"  # "openai" or "anthropic"
     model: str = "gpt-4o-mini"
     max_tokens: int = 300
     include_context: bool = True
@@ -106,6 +107,7 @@ class DocpipeConfig:
     input_dir: Path
     output_dir: Path
     openai_api_key: str = ""
+    anthropic_api_key: str = ""
     watcher: WatcherConfig = field(default_factory=WatcherConfig)
     converter: ConverterConfig = field(default_factory=ConverterConfig)
     extractor: ExtractorConfig = field(default_factory=ExtractorConfig)
@@ -141,6 +143,7 @@ def load_config(path: Path) -> DocpipeConfig:
         input_dir=Path(raw.get("input_dir", "./input")),
         output_dir=Path(raw.get("output_dir", "./output")),
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
+        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
         watcher=_merge_dataclass(WatcherConfig, raw.get("watcher")),
         converter=_merge_dataclass(ConverterConfig, raw.get("converter")),
         extractor=_merge_dataclass(ExtractorConfig, raw.get("extractor")),

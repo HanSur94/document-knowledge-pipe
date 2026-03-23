@@ -35,9 +35,10 @@ extractor:
   image_format: "png"
   dpi: 150
 
-# Describer (GPT-4o mini vision)
+# Describer (vision LLM)
 describer:
-  model: "gpt-4o-mini"
+  provider: "openai"            # "openai" or "anthropic"
+  model: "gpt-4o-mini"          # or "claude-haiku-4-5-20251001" for anthropic
   max_tokens: 300
   include_context: true
   context_chars: 500

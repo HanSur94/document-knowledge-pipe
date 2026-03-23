@@ -1,4 +1,4 @@
-"""Replace image references in markdown with GPT-4o mini vision descriptions."""
+"""Replace image references in markdown with vision LLM descriptions."""
 
 from __future__ import annotations
 
@@ -8,7 +8,9 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Literal, cast
 
+import anthropic
 import openai
 
 from docpipe.config import ApiRetryConfig, DescriberConfig
@@ -33,7 +35,7 @@ def get_surrounding_context(text: str, position: int, context_chars: int) -> tup
     return before, after
 
 
-async def _call_vision_api(
+async def _call_openai_vision_api(
     client: openai.AsyncOpenAI,
     image_b64: str,
     image_format: str,
@@ -86,6 +88,72 @@ async def _call_vision_api(
     return "[image description unavailable]"
 
 
+async def _call_anthropic_vision_api(
+    client: anthropic.AsyncAnthropic,
+    image_b64: str,
+    media_type: str,
+    context_before: str,
+    context_after: str,
+    cfg: DescriberConfig,
+    retry_cfg: ApiRetryConfig,
+) -> str:
+    """Call Anthropic vision API with retry."""
+    prompt = (
+        "Describe this image concisely for a document knowledge base. "
+        "Focus on what the image shows and its significance."
+    )
+    if context_before:
+        prompt += f"\n\nPreceding text: {context_before}"
+    if context_after:
+        prompt += f"\n\nFollowing text: {context_after}"
+
+    delay = retry_cfg.initial_delay_seconds
+    for attempt in range(retry_cfg.max_retries + 1):
+        try:
+            response = await client.messages.create(
+                model=cfg.model,
+                max_tokens=cfg.max_tokens,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            anthropic.types.ImageBlockParam(
+                                type="image",
+                                source=anthropic.types.Base64ImageSourceParam(
+                                    type="base64",
+                                    media_type=cast(
+                                        Literal[
+                                            "image/jpeg",
+                                            "image/png",
+                                            "image/gif",
+                                            "image/webp",
+                                        ],
+                                        media_type,
+                                    ),
+                                    data=image_b64,
+                                ),
+                            ),
+                            anthropic.types.TextBlockParam(type="text", text=prompt),
+                        ],
+                    }
+                ],
+            )
+            first_block = response.content[0]
+            if not isinstance(first_block, anthropic.types.TextBlock):
+                return "[no description generated]"
+            content = first_block.text
+            return content or "[no description generated]"
+        except anthropic.APIError as e:
+            if attempt == retry_cfg.max_retries:
+                logger.error("Anthropic vision API failed after %d retries: %s", attempt + 1, e)
+                return "[image description unavailable]"
+            logger.warning("Anthropic vision attempt %d failed: %s. Retrying...", attempt + 1, e)
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, retry_cfg.max_delay_seconds)
+
+    return "[image description unavailable]"
+
+
 async def describe_image(
     image_path: Path,
     context_before: str,
@@ -93,22 +161,31 @@ async def describe_image(
     cfg: DescriberConfig,
     retry_cfg: ApiRetryConfig,
 ) -> str:
-    """Send an image to GPT-4o mini vision and get a description."""
+    """Send an image to the configured vision LLM and get a description."""
     image_b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
     image_format = image_path.suffix.lstrip(".").lower()
     if image_format == "jpg":
         image_format = "jpeg"
+    media_type = f"image/{image_format}"
 
-    client = openai.AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", "test-key"))
-    return await _call_vision_api(
-        client,
-        image_b64,
-        image_format,
-        context_before,
-        context_after,
-        cfg,
-        retry_cfg,
-    )
+    if cfg.provider == "anthropic":
+        anthropic_client = anthropic.AsyncAnthropic(
+            api_key=os.environ.get("ANTHROPIC_API_KEY", "test-key")
+        )
+        return await _call_anthropic_vision_api(
+            anthropic_client, image_b64, media_type,
+            context_before, context_after,
+            cfg, retry_cfg,
+        )
+    else:
+        openai_client = openai.AsyncOpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY", "test-key")
+        )
+        return await _call_openai_vision_api(
+            openai_client, image_b64, image_format,
+            context_before, context_after,
+            cfg, retry_cfg,
+        )
 
 
 async def replace_image_refs(

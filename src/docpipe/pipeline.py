@@ -125,7 +125,9 @@ async def process_file(file_path: Path, cfg: DocpipeConfig) -> bool:
         md_path.write_text(markdown, encoding="utf-8")
 
         # Stage 4: Update registry
-        summary, topics = await generate_summary(markdown, cfg.registry, cfg.api_retry)
+        summary, topics = await generate_summary(
+            markdown, cfg.registry, cfg.api_retry, provider=cfg.describer.provider
+        )
         reg_entry = RegistryEntry(
             filename=f"{doc_stem}.md",
             author="-",
