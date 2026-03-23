@@ -14,7 +14,7 @@ A standalone Python package that watches a folder for documents, converts them t
 
 1. Python 3.10+
 2. `uv` (package manager)
-3. LibreOffice (for non-PDF document conversion)
+3. LibreOffice 6.2+ (for non-PDF document conversion; 6.2+ required for `--safe-mode` macro protection)
 4. OpenAI API key (GPT-4o mini / GPT-5)
 
 ## Architecture
@@ -195,8 +195,8 @@ graph:
   chunk_size: 1200
   chunk_overlap: 100
 
-# Describer API retry
-describer_retry:
+# API retry (applies to all OpenAI calls: describer, registry, graph)
+api_retry:
   max_retries: 3
   initial_delay_seconds: 1
   max_delay_seconds: 30          # exponential backoff cap
@@ -223,7 +223,9 @@ docpipe status                        # Show rich status table
 
 All commands accept `--config path/to/config.yaml` (defaults to `./config.yaml`).
 
-**Note:** `docpipe run` is a **foreground blocking process** (not a daemon). This is the safest cross-platform behavior for Windows. To run in background on Windows, use `start /B docpipe run` or run it as a scheduled task. A lockfile (`output/.docpipe.lock`) prevents concurrent `docpipe run` and `docpipe ingest` from processing the same files simultaneously.
+**Note:** `docpipe run` is a **foreground blocking process** (not a daemon). This is the safest cross-platform behavior for Windows. To run in background on Windows, use `start /B docpipe run` or run it as a scheduled task. A lockfile (`output/.docpipe.lock`) prevents concurrent `docpipe run` and `docpipe ingest` from processing the same files simultaneously. If the lockfile is held, `docpipe ingest` exits immediately with: `"Error: docpipe is already running (lockfile held). Stop the watcher first or wait for it to finish."`.
+
+**`--rebuild-graph`:** Deletes the entire `lightrag_store/` directory, then re-ingests all markdown files from `output/markdown/`. If interrupted, a subsequent `--rebuild-graph` will start fresh again (safe). Output filenames are derived from the source filename stem only — directory components are stripped to prevent path traversal.
 
 ## Status & Monitoring
 
@@ -312,7 +314,7 @@ Concise enough for an agent to scan without flooding its context, detailed enoug
 | LightRAG ingestion failure | Log error, markdown still gets written (graph is non-blocking) |
 | Partial run crash | Next run cleans up orphaned outputs and restarts from scratch |
 | Concurrent run/ingest | Lockfile prevents simultaneous processing |
-| Unicode filenames (Windows) | Files are copied to a temp dir with ASCII-safe names for LibreOffice conversion |
+| Unicode filenames (Windows) | Files are copied to a temp dir with ASCII-safe names for LibreOffice conversion; temp copy is deleted in a `finally` block regardless of success/failure |
 
 The pipeline is **fault-tolerant per file** — one bad file never blocks the rest.
 
