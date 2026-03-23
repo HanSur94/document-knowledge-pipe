@@ -13,35 +13,15 @@ Run with: pytest tests/test_full_system.py -v
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
-
 import pytest
 import yaml
 
-from docpipe.config import ConverterConfig, load_config
-from docpipe.converter import find_libreoffice
+from conftest import needs_anthropic_key, needs_libreoffice, needs_openai_key
+from docpipe.config import load_config
 from docpipe.pipeline import process_file
 
 REAL_WORLD = Path(__file__).parent / "fixtures" / "real-world"
-
-needs_anthropic_key = pytest.mark.skipif(
-    not os.environ.get("ANTHROPIC_API_KEY"),
-    reason="ANTHROPIC_API_KEY not set",
-)
-
-_lo_available = False
-try:
-    find_libreoffice(ConverterConfig())
-    _lo_available = True
-except FileNotFoundError:
-    pass
-
-needs_libreoffice = pytest.mark.skipif(
-    not _lo_available,
-    reason="LibreOffice not installed",
-)
 
 
 @pytest.fixture
@@ -110,13 +90,7 @@ async def _run_and_verify(
     """Run pipeline on a file and verify outputs exist."""
     cfg = load_config(cfg_path)
 
-    # Mock only graph ingestion (needs OpenAI embedding key)
-    with patch(
-        "docpipe.pipeline.ingest_document",
-        new_callable=AsyncMock,
-        return_value=True,
-    ):
-        success = await process_file(file_path, cfg)
+    success = await process_file(file_path, cfg)
 
     assert success, f"Pipeline failed for {file_path.name}"
 
@@ -138,6 +112,7 @@ async def _run_and_verify(
 
 
 @needs_anthropic_key
+@needs_openai_key
 class TestKaggleBusinessDocs:
     """Full pipeline on real business PDFs from Kaggle."""
 
@@ -174,6 +149,7 @@ class TestKaggleBusinessDocs:
 
 
 @needs_anthropic_key
+@needs_openai_key
 @needs_libreoffice
 class TestFormatCorpusDocs:
     """Full pipeline on real office docs from OpenPreserve format-corpus."""
