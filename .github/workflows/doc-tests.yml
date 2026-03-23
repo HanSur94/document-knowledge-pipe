@@ -1,0 +1,52 @@
+name: Document Type Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  doc-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install LibreOffice (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer libreoffice-calc libreoffice-impress
+
+      - name: Install LibreOffice (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install libreoffice-fresh -y --no-progress
+
+      - run: uv sync --dev
+
+      - name: Run document type tests
+        run: uv run pytest tests/test_doctypes.py -v --tb=short
+
+  e2e-anthropic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - run: uv sync --dev
+
+      - name: Run E2E test with Anthropic
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run pytest tests/test_e2e_anthropic.py -v --tb=short

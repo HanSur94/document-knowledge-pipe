@@ -173,18 +173,24 @@ async def describe_image(
             api_key=os.environ.get("ANTHROPIC_API_KEY", "test-key")
         )
         return await _call_anthropic_vision_api(
-            anthropic_client, image_b64, media_type,
-            context_before, context_after,
-            cfg, retry_cfg,
+            anthropic_client,
+            image_b64,
+            media_type,
+            context_before,
+            context_after,
+            cfg,
+            retry_cfg,
         )
     else:
-        openai_client = openai.AsyncOpenAI(
-            api_key=os.environ.get("OPENAI_API_KEY", "test-key")
-        )
+        openai_client = openai.AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", "test-key"))
         return await _call_openai_vision_api(
-            openai_client, image_b64, image_format,
-            context_before, context_after,
-            cfg, retry_cfg,
+            openai_client,
+            image_b64,
+            image_format,
+            context_before,
+            context_after,
+            cfg,
+            retry_cfg,
         )
 
 

@@ -77,7 +77,9 @@ class TestDescribeImageAnthropic:
             b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
         )
         result = await describe_image(
-            img, "preceding text", "following text",
+            img,
+            "preceding text",
+            "following text",
             DescriberConfig(provider="anthropic", model="claude-haiku-4-5-20251001"),
             ApiRetryConfig(),
         )

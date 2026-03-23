@@ -108,9 +108,7 @@ async def generate_summary(
                 )
                 first_block = anthropic_response.content[0]
                 content = (
-                    first_block.text
-                    if isinstance(first_block, anthropic.types.TextBlock)
-                    else ""
+                    first_block.text if isinstance(first_block, anthropic.types.TextBlock) else ""
                 )
             else:
                 openai_client = openai.AsyncOpenAI(
