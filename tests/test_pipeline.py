@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import pytest
+import yaml
+from conftest import needs_api_keys
 
 from docpipe.config import load_config
 from docpipe.pipeline import Lockfile, cleanup_orphans, process_file
@@ -48,28 +49,51 @@ class TestCleanupOrphans:
         assert (img_dir / "other_img001.png").exists()
 
 
+@needs_api_keys
 class TestProcessFile:
+    @pytest.fixture
+    def api_config(self, tmp_dirs: dict[str, Path]) -> Path:
+        """Config with Anthropic provider and real API retry settings."""
+        config = {
+            "input_dir": str(tmp_dirs["input"]),
+            "output_dir": str(tmp_dirs["output"]),
+            "describer": {
+                "provider": "anthropic",
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 300,
+                "include_context": True,
+                "context_chars": 500,
+                "batch_size": 5,
+            },
+            "graph": {
+                "storage": "file",
+                "store_dir": str(tmp_dirs["output"] / "lightrag_store"),
+                "model": "gpt-4o-mini",
+                "embedding_model": "text-embedding-3-small",
+            },
+            "api_retry": {
+                "max_retries": 2,
+                "initial_delay_seconds": 1,
+                "max_delay_seconds": 10,
+            },
+            "logging": {
+                "level": "DEBUG",
+                "file": str(tmp_dirs["root"] / "logs" / "docpipe.log"),
+                "max_size_mb": 1,
+                "backup_count": 1,
+            },
+        }
+        cfg_path = tmp_dirs["root"] / "config.yaml"
+        cfg_path.write_text(yaml.dump(config))
+        return cfg_path
+
     @pytest.mark.asyncio
-    @patch("docpipe.pipeline.ingest_document", new_callable=AsyncMock, return_value=True)
-    @patch(
-        "docpipe.pipeline.generate_summary",
-        new_callable=AsyncMock,
-        return_value=("Summary", "topics"),
-    )
-    @patch(
-        "docpipe.pipeline.replace_image_refs",
-        new_callable=AsyncMock,
-        side_effect=lambda md, *a, **kw: md,
-    )
     async def test_processes_pdf_end_to_end(
         self,
-        mock_replace: AsyncMock,
-        mock_summary: AsyncMock,
-        mock_ingest: AsyncMock,
         sample_pdf: Path,
-        config_file: Path,
+        api_config: Path,
     ) -> None:
-        cfg = load_config(config_file)
+        cfg = load_config(api_config)
         result = await process_file(sample_pdf, cfg)
         assert result is True
 

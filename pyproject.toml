@@ -59,3 +59,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "needs_anthropic_key: requires ANTHROPIC_API_KEY",
+    "needs_openai_key: requires OPENAI_API_KEY",
+    "needs_api_keys: requires both ANTHROPIC_API_KEY and OPENAI_API_KEY",
+    "needs_libreoffice: requires LibreOffice installed",
+]

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 from click.testing import CliRunner
 
@@ -23,8 +22,9 @@ class TestCLI:
         result = runner.invoke(main, ["status", "--config", str(config_file)])
         assert result.exit_code == 0
 
-    @patch("docpipe.cli._run_ingest", new_callable=AsyncMock)
-    def test_ingest_calls_pipeline(self, mock_ingest: AsyncMock, config_file: Path) -> None:
+    def test_ingest_with_empty_input(self, config_file: Path) -> None:
+        """CLI ingest with empty input dir processes zero files and exits 0."""
         runner = CliRunner()
         result = runner.invoke(main, ["ingest", "--config", str(config_file)])
         assert result.exit_code == 0
+        assert "Processing 0 file(s)" in result.output
