@@ -66,14 +66,18 @@ async def _judge_output(markdown: str, registry: str) -> dict[str, str]:
     """Use Claude as a judge to evaluate pipeline output quality."""
     client = anthropic.AsyncAnthropic()
 
-    # Truncate at a clean paragraph boundary to avoid cutting mid-description
-    max_chars = 4000
+    # Truncate cleanly: never cut inside an **[Image: ...]** block
+    max_chars = 6000
     if len(markdown) > max_chars:
-        # Find the last double-newline before the limit
-        cut_point = markdown.rfind("\n\n", 0, max_chars)
-        if cut_point < max_chars // 2:
-            cut_point = max_chars  # fallback if no good boundary
-        md_truncated = markdown[:cut_point]
+        truncated = markdown[:max_chars]
+        # If we're inside an unclosed **[Image: block, cut before it
+        last_img_open = truncated.rfind("**[Image:")
+        if last_img_open != -1:
+            last_img_close = truncated.find("]**", last_img_open)
+            if last_img_close == -1:
+                # Unclosed image block — cut before it
+                truncated = truncated[:last_img_open].rstrip()
+        md_truncated = truncated
     else:
         md_truncated = markdown
     reg_truncated = registry[:1000]
