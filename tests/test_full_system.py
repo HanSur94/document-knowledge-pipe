@@ -14,10 +14,11 @@ Run with: pytest tests/test_full_system.py -v
 from __future__ import annotations
 
 from pathlib import Path
+
 import pytest
 import yaml
-
 from conftest import needs_anthropic_key, needs_libreoffice, needs_openai_key
+
 from docpipe.config import load_config
 from docpipe.pipeline import process_file
 

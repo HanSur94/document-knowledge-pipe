@@ -8,7 +8,10 @@ from docpipe.watcher import DebouncedHandler
 class TestDebouncedHandler:
     def test_accumulates_events_within_debounce(self) -> None:
         events: list[tuple] = []
-        callback = lambda paths, deleted: events.append((paths, deleted))
+
+        def callback(paths, deleted):
+            events.append((paths, deleted))
+
         handler = DebouncedHandler(
             callback=callback,
             debounce_seconds=1,
@@ -22,7 +25,10 @@ class TestDebouncedHandler:
 
     def test_ignores_unsupported_extensions(self) -> None:
         events: list[tuple] = []
-        callback = lambda paths, deleted: events.append((paths, deleted))
+
+        def callback(paths, deleted):
+            events.append((paths, deleted))
+
         handler = DebouncedHandler(
             callback=callback,
             debounce_seconds=1,
@@ -34,7 +40,10 @@ class TestDebouncedHandler:
 
     def test_tracks_deletions_separately(self) -> None:
         events: list[tuple] = []
-        callback = lambda paths, deleted: events.append((paths, deleted))
+
+        def callback(paths, deleted):
+            events.append((paths, deleted))
+
         handler = DebouncedHandler(
             callback=callback,
             debounce_seconds=1,

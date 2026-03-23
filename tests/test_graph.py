@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from conftest import needs_openai_key
+
 from docpipe.config import GraphConfig
 from docpipe.graph import ingest_document, rebuild_graph
 
@@ -14,7 +14,8 @@ class TestIngestDocument:
     @pytest.mark.asyncio
     async def test_inserts_markdown_into_lightrag(self, tmp_dirs: dict[str, Path]) -> None:
         cfg = GraphConfig(store_dir=str(tmp_dirs["output"] / "lightrag_store"))
-        result = await ingest_document("# Test\nHello world. This is test content.", "test_doc", cfg)
+        content = "# Test\nHello world. This is test content."
+        result = await ingest_document(content, "test_doc", cfg)
         assert result is True
 
 

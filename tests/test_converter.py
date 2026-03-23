@@ -4,8 +4,8 @@ import shutil
 from pathlib import Path
 
 import pytest
-
 from conftest import needs_libreoffice
+
 from docpipe.config import ConverterConfig
 from docpipe.converter import convert_to_pdf, find_libreoffice
 

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from conftest import needs_api_keys
+
 from docpipe.config import load_config
 from docpipe.pipeline import Lockfile, cleanup_orphans, process_file
 

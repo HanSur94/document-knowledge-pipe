@@ -12,8 +12,8 @@ from pathlib import Path
 import anthropic
 import pytest
 import yaml
-
 from conftest import needs_anthropic_key, needs_openai_key
+
 from docpipe.config import load_config
 from docpipe.pipeline import process_file
 

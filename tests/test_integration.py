@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from conftest import needs_api_keys
+
 from docpipe.config import load_config
 from docpipe.pipeline import process_file
 
@@ -33,8 +33,13 @@ class TestEndToEnd:
                 "filename": "registry.md",
                 "summary_max_words": 30,
                 "include_fields": [
-                    "filename", "author", "date", "summary",
-                    "topics", "pages", "images",
+                    "filename",
+                    "author",
+                    "date",
+                    "summary",
+                    "topics",
+                    "pages",
+                    "images",
                 ],
             },
             "graph": {

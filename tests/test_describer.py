@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from conftest import needs_anthropic_key
+
 from docpipe.config import ApiRetryConfig, DescriberConfig
 from docpipe.describer import (
     describe_image,
