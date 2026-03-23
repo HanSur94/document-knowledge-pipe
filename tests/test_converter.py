@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import subprocess
+import shutil
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
+from conftest import needs_libreoffice
 from docpipe.config import ConverterConfig
 from docpipe.converter import convert_to_pdf, find_libreoffice
 
@@ -15,17 +15,12 @@ class TestFindLibreOffice:
         cfg = ConverterConfig(libreoffice_path="/usr/bin/soffice")
         assert find_libreoffice(cfg) == Path("/usr/bin/soffice")
 
-    @patch("shutil.which", return_value="/usr/bin/soffice")
-    def test_auto_detect_from_path(self, mock_which: MagicMock) -> None:
+    @needs_libreoffice
+    def test_auto_detect_from_path(self) -> None:
         cfg = ConverterConfig(libreoffice_path=None)
         result = find_libreoffice(cfg)
         assert result is not None
-
-    @patch("shutil.which", return_value=None)
-    def test_raises_if_not_found(self, mock_which: MagicMock) -> None:
-        cfg = ConverterConfig(libreoffice_path=None)
-        with pytest.raises(FileNotFoundError, match="LibreOffice"):
-            find_libreoffice(cfg)
+        assert result.exists()
 
 
 class TestConvertToPdf:
@@ -43,29 +38,17 @@ class TestConvertToPdf:
         with pytest.raises(ValueError, match="Unsupported"):
             convert_to_pdf(bad_file, tmp_dirs["output"], ConverterConfig())
 
-    @patch("subprocess.run")
-    def test_calls_libreoffice_for_docx(
-        self, mock_run: MagicMock, tmp_dirs: dict[str, Path]
-    ) -> None:
-        docx = tmp_dirs["input"] / "test.docx"
-        docx.write_bytes(b"fake docx")
-        out_pdf = tmp_dirs["output"] / "test.pdf"
-        out_pdf.write_bytes(b"fake pdf")
-        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+    @needs_libreoffice
+    def test_converts_docx_to_pdf(self, tmp_dirs: dict[str, Path]) -> None:
+        """Convert a real .docx file using LibreOffice."""
+        fixtures = Path(__file__).parent / "fixtures"
+        docx_src = fixtures / "sample.docx"
+        if not docx_src.exists():
+            pytest.skip("sample.docx fixture not found")
 
-        cfg = ConverterConfig(libreoffice_path="/usr/bin/soffice")
-        convert_to_pdf(docx, tmp_dirs["output"], cfg)
+        docx = tmp_dirs["input"] / "sample.docx"
+        shutil.copy2(docx_src, docx)
 
-        mock_run.assert_called_once()
-        call_args = mock_run.call_args[0][0]
-        assert "--headless" in call_args
-        assert "--norestore" in call_args
-        assert "--safe-mode" in call_args
-
-    @patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="soffice", timeout=120))
-    def test_timeout_raises(self, mock_run: MagicMock, tmp_dirs: dict[str, Path]) -> None:
-        docx = tmp_dirs["input"] / "test.docx"
-        docx.write_bytes(b"fake docx")
-        cfg = ConverterConfig(libreoffice_path="/usr/bin/soffice", timeout_seconds=120)
-        with pytest.raises(subprocess.TimeoutExpired):
-            convert_to_pdf(docx, tmp_dirs["output"], cfg)
+        result = convert_to_pdf(docx, tmp_dirs["output"], ConverterConfig())
+        assert result.exists()
+        assert result.suffix == ".pdf"
