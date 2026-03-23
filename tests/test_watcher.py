@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 from docpipe.watcher import DebouncedHandler
 
 
 class TestDebouncedHandler:
     def test_accumulates_events_within_debounce(self) -> None:
-        callback = MagicMock()
+        events: list[tuple] = []
+        callback = lambda paths, deleted: events.append((paths, deleted))
         handler = DebouncedHandler(
             callback=callback,
             debounce_seconds=1,
@@ -21,7 +21,8 @@ class TestDebouncedHandler:
         assert "test.pdf" in handler._pending
 
     def test_ignores_unsupported_extensions(self) -> None:
-        callback = MagicMock()
+        events: list[tuple] = []
+        callback = lambda paths, deleted: events.append((paths, deleted))
         handler = DebouncedHandler(
             callback=callback,
             debounce_seconds=1,
@@ -32,7 +33,8 @@ class TestDebouncedHandler:
         assert len(handler._pending) == 0
 
     def test_tracks_deletions_separately(self) -> None:
-        callback = MagicMock()
+        events: list[tuple] = []
+        callback = lambda paths, deleted: events.append((paths, deleted))
         handler = DebouncedHandler(
             callback=callback,
             debounce_seconds=1,
