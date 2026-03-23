@@ -1,10 +1,39 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
+
+needs_anthropic_key = pytest.mark.skipif(
+    not os.environ.get("ANTHROPIC_API_KEY"),
+    reason="ANTHROPIC_API_KEY not set",
+)
+needs_openai_key = pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="OPENAI_API_KEY not set",
+)
+needs_api_keys = pytest.mark.skipif(
+    not (os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("OPENAI_API_KEY")),
+    reason="ANTHROPIC_API_KEY and OPENAI_API_KEY required",
+)
+
+_lo_available = False
+try:
+    from docpipe.config import ConverterConfig
+    from docpipe.converter import find_libreoffice
+
+    find_libreoffice(ConverterConfig())
+    _lo_available = True
+except (FileNotFoundError, ImportError):
+    pass
+
+needs_libreoffice = pytest.mark.skipif(
+    not _lo_available,
+    reason="LibreOffice not installed",
+)
 
 
 @pytest.fixture
