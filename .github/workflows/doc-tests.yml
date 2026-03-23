@@ -46,7 +46,28 @@ jobs:
 
       - run: uv sync --dev
 
-      - name: Run E2E test with Anthropic
+      - name: Run E2E test with Anthropic + LLM judge
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: uv run pytest tests/test_e2e_anthropic.py -v --tb=short
+
+  full-system:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install LibreOffice
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer libreoffice-calc libreoffice-impress
+
+      - run: uv sync --dev
+
+      - name: Full system test — real-world docs + Anthropic
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run pytest tests/test_full_system.py -v --tb=short
