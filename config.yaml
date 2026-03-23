@@ -1,0 +1,80 @@
+# DocPipe Configuration
+# Paths
+input_dir: "./input"
+output_dir: "./output"
+
+# Watcher
+watcher:
+  enabled: true
+  debounce_seconds: 60
+  max_wait_seconds: 300
+  poll_interval_seconds: 1
+  watch_subdirectories: false
+
+# Converter (LibreOffice)
+converter:
+  libreoffice_path: null
+  timeout_seconds: 120
+  supported_extensions:
+    - .doc
+    - .docx
+    - .xls
+    - .xlsx
+    - .ppt
+    - .pptx
+    - .odt
+    - .ods
+    - .odp
+    - .rtf
+    - .html
+    - .epub
+
+# Extractor (PyMuPDF4LLM)
+extractor:
+  write_images: true
+  image_format: "png"
+  dpi: 150
+
+# Describer (GPT-4o mini vision)
+describer:
+  model: "gpt-4o-mini"
+  max_tokens: 300
+  include_context: true
+  context_chars: 500
+  batch_size: 5
+
+# Registry
+registry:
+  filename: "registry.md"
+  summary_max_words: 30
+  include_fields:
+    - filename
+    - author
+    - date
+    - summary
+    - topics
+    - pages
+    - images
+
+# Knowledge Graph (LightRAG)
+graph:
+  storage: "file"
+  store_dir: "./output/lightrag_store"
+  model: "gpt-4o-mini"
+  embedding_model: "text-embedding-3-small"
+  max_tokens: 4096
+  chunk_size: 1200
+  chunk_overlap: 100
+
+# API retry (applies to all OpenAI calls)
+api_retry:
+  max_retries: 3
+  initial_delay_seconds: 1
+  max_delay_seconds: 30
+
+# Logging
+logging:
+  level: "INFO"
+  file: "./logs/docpipe.log"
+  max_size_mb: 50
+  backup_count: 3
