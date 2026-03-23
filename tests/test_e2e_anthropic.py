@@ -7,20 +7,15 @@ Run with: pytest tests/test_e2e_anthropic.py -v
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import anthropic
 import pytest
 import yaml
 
+from conftest import needs_anthropic_key, needs_openai_key
 from docpipe.config import load_config
 from docpipe.pipeline import process_file
-
-needs_anthropic_key = pytest.mark.skipif(
-    not os.environ.get("ANTHROPIC_API_KEY"),
-    reason="ANTHROPIC_API_KEY not set",
-)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -111,6 +106,7 @@ async def _judge_output(markdown: str, registry: str) -> dict[str, str]:
 
 
 @needs_anthropic_key
+@needs_openai_key
 class TestE2EAnthropic:
     @pytest.fixture
     def anthropic_config(self, tmp_path: Path) -> Path:
@@ -181,15 +177,7 @@ class TestE2EAnthropic:
         if not pdf.exists():
             pytest.skip("sample.pdf fixture not found")
 
-        # Mock only the graph ingestion (needs OpenAI embedding)
-        from unittest.mock import AsyncMock, patch
-
-        with patch(
-            "docpipe.pipeline.ingest_document",
-            new_callable=AsyncMock,
-            return_value=True,
-        ):
-            success = await process_file(pdf, cfg)
+        success = await process_file(pdf, cfg)
 
         assert success, "Pipeline failed to process PDF"
 
