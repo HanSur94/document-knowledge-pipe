@@ -52,7 +52,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["lightrag.*", "pymupdf4llm.*"]
+module = ["lightrag.*", "pymupdf4llm.*", "fitz.*", "yaml.*", "watchdog.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

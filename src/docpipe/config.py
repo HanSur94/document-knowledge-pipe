@@ -120,7 +120,9 @@ def _merge_dataclass(cls: type, data: dict[str, Any] | None) -> Any:
     """Create a dataclass instance, using defaults for missing keys."""
     if data is None:
         return cls()
-    valid_keys = {f.name for f in cls.__dataclass_fields__.values()}
+    import dataclasses
+
+    valid_keys = {f.name for f in dataclasses.fields(cls)}
     filtered = {k: v for k, v in data.items() if k in valid_keys}
     return cls(**filtered)
 

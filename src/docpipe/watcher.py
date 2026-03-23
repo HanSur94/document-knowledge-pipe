@@ -7,6 +7,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -102,21 +103,21 @@ class DebouncedHandler(FileSystemEventHandler):
 
     def on_created(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
-            self._on_relevant_event(Path(event.src_path))
+            self._on_relevant_event(Path(str(event.src_path)))
 
     def on_modified(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
-            self._on_relevant_event(Path(event.src_path))
+            self._on_relevant_event(Path(str(event.src_path)))
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
-            self._on_delete_event(Path(event.src_path))
+            self._on_delete_event(Path(str(event.src_path)))
 
     def on_moved(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
-            self._on_delete_event(Path(event.src_path))
+            self._on_delete_event(Path(str(event.src_path)))
             if hasattr(event, "dest_path"):
-                self._on_relevant_event(Path(event.dest_path))
+                self._on_relevant_event(Path(str(event.dest_path)))
 
 
 def start_watcher(
@@ -124,7 +125,7 @@ def start_watcher(
     watcher_cfg: WatcherConfig,
     converter_cfg: ConverterConfig,
     callback: Callable[[list[Path], list[str]], None],
-) -> Observer:
+) -> Any:  # Observer type not exported cleanly
     """Start the file system watcher. Returns the Observer (call .stop() to stop)."""
     supported = set(converter_cfg.supported_extensions) | {".pdf"}
     handler = DebouncedHandler(

@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 async def _get_rag_instance(cfg: GraphConfig) -> Any:  # noqa: ANN401
     """Create and initialize a LightRAG instance."""
-    from lightrag import LightRAG  # type: ignore[import-untyped]
-    from lightrag.llm.openai import openai_complete, openai_embed  # type: ignore[import-untyped]
+    from lightrag import LightRAG
+    from lightrag.llm.openai import openai_complete, openai_embed
 
     store_dir = Path(cfg.store_dir)
     store_dir.mkdir(parents=True, exist_ok=True)
