@@ -1,0 +1,37 @@
+# Example DocPipe Configuration
+# Copy this file and adjust paths for your setup
+
+input_dir: ./input
+output_dir: ./output
+
+# Watcher
+watcher:
+  enabled: true
+  debounce_seconds: 60
+  max_wait_seconds: 300
+
+# Describer — choose your LLM provider
+describer:
+  # Option A: OpenAI (default)
+  provider: "openai"
+  model: "gpt-4o-mini"
+
+  # Option B: Anthropic (uncomment below, comment above)
+  # provider: "anthropic"
+  # model: "claude-haiku-4-5-20251001"
+
+  max_tokens: 300
+  include_context: true
+  context_chars: 500
+
+# Knowledge Graph
+graph:
+  storage: "file"
+  store_dir: "./output/lightrag_store"
+  model: "gpt-4o-mini"
+  embedding_model: "text-embedding-3-small"
+
+# Logging
+logging:
+  level: "INFO"
+  file: "./logs/docpipe.log"
