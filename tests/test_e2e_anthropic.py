@@ -45,9 +45,7 @@ _JUDGE_PROMPT = (
     '   Ipsum). FAIL only if it says "Summary unavailable".\n'
     "5. **registry_has_topics**: The registry has topic tags (not just -).\n"
     "6. **no_error_markers**: No error placeholders like\n"
-    '   "[image description unavailable]" or "Processing failed".\n'
-    "   NOTE: The markdown may be truncated for evaluation with a\n"
-    "   [TRUNCATED] marker — this is NOT an error, ignore it.\n\n"
+    '   "[image description unavailable]" or "Processing failed".\n\n'
     "## Response Format\n\n"
     "Respond with ONLY valid JSON, no other text:\n"
     "{{\n"
@@ -68,10 +66,16 @@ async def _judge_output(markdown: str, registry: str) -> dict[str, str]:
     """Use Claude as a judge to evaluate pipeline output quality."""
     client = anthropic.AsyncAnthropic()
 
-    # Truncate to avoid token limits
-    md_truncated = markdown[:4000]
-    if len(markdown) > 4000:
-        md_truncated += "\n\n[TRUNCATED FOR EVALUATION — remaining content omitted]"
+    # Truncate at a clean paragraph boundary to avoid cutting mid-description
+    max_chars = 4000
+    if len(markdown) > max_chars:
+        # Find the last double-newline before the limit
+        cut_point = markdown.rfind("\n\n", 0, max_chars)
+        if cut_point < max_chars // 2:
+            cut_point = max_chars  # fallback if no good boundary
+        md_truncated = markdown[:cut_point]
+    else:
+        md_truncated = markdown
     reg_truncated = registry[:1000]
 
     response = await client.messages.create(
