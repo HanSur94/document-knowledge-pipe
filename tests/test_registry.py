@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from docpipe.config import ApiRetryConfig, RegistryConfig
-from docpipe.registry import RegistryEntry, build_registry, update_registry
+from docpipe.registry import RegistryEntry, update_registry
 
 
 class TestRegistryEntry:
@@ -36,8 +31,13 @@ class TestRegistryEntry:
 class TestUpdateRegistry:
     def test_creates_registry_file(self, tmp_dirs: dict[str, Path]) -> None:
         entry = RegistryEntry(
-            filename="test.md", author="-", date="-",
-            summary="Test doc", topics="test", pages=1, images=0,
+            filename="test.md",
+            author="-",
+            date="-",
+            summary="Test doc",
+            topics="test",
+            pages=1,
+            images=0,
         )
         reg_path = tmp_dirs["output"] / "registry.md"
         update_registry(reg_path, entry)
@@ -49,14 +49,24 @@ class TestUpdateRegistry:
     def test_updates_existing_entry(self, tmp_dirs: dict[str, Path]) -> None:
         reg_path = tmp_dirs["output"] / "registry.md"
         entry1 = RegistryEntry(
-            filename="test.md", author="-", date="-",
-            summary="Version 1", topics="test", pages=1, images=0,
+            filename="test.md",
+            author="-",
+            date="-",
+            summary="Version 1",
+            topics="test",
+            pages=1,
+            images=0,
         )
         update_registry(reg_path, entry1)
 
         entry2 = RegistryEntry(
-            filename="test.md", author="-", date="-",
-            summary="Version 2", topics="test", pages=2, images=1,
+            filename="test.md",
+            author="-",
+            date="-",
+            summary="Version 2",
+            topics="test",
+            pages=2,
+            images=1,
         )
         update_registry(reg_path, entry2)
 
@@ -67,8 +77,13 @@ class TestUpdateRegistry:
     def test_removes_entry(self, tmp_dirs: dict[str, Path]) -> None:
         reg_path = tmp_dirs["output"] / "registry.md"
         entry = RegistryEntry(
-            filename="test.md", author="-", date="-",
-            summary="Will be removed", topics="test", pages=1, images=0,
+            filename="test.md",
+            author="-",
+            date="-",
+            summary="Will be removed",
+            topics="test",
+            pages=1,
+            images=0,
         )
         update_registry(reg_path, entry)
         update_registry(reg_path, entry, remove=True)

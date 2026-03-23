@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +52,15 @@ def sample_config(tmp_dirs: dict[str, Path]) -> dict[str, Any]:
         "registry": {
             "filename": "registry.md",
             "summary_max_words": 30,
-            "include_fields": ["filename", "author", "date", "summary", "topics", "pages", "images"],
+            "include_fields": [
+                "filename",
+                "author",
+                "date",
+                "summary",
+                "topics",
+                "pages",
+                "images",
+            ],
         },
         "graph": {
             "storage": "file",

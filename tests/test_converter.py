@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -55,7 +54,7 @@ class TestConvertToPdf:
         mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
 
         cfg = ConverterConfig(libreoffice_path="/usr/bin/soffice")
-        result = convert_to_pdf(docx, tmp_dirs["output"], cfg)
+        convert_to_pdf(docx, tmp_dirs["output"], cfg)
 
         mock_run.assert_called_once()
         call_args = mock_run.call_args[0][0]

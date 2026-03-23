@@ -1,4 +1,5 @@
 """Replace image references in markdown with GPT-4o mini vision descriptions."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,7 +7,6 @@ import base64
 import logging
 import os
 import re
-import time
 from pathlib import Path
 
 import openai
@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 _IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 
 
-def get_surrounding_context(
-    text: str, position: int, context_chars: int
-) -> tuple[str, str]:
+def get_surrounding_context(text: str, position: int, context_chars: int) -> tuple[str, str]:
     """Extract text before and after a position in the document."""
     start = max(0, position - context_chars)
     end_of_ref = text.find(")", position)
@@ -103,9 +101,13 @@ async def describe_image(
 
     client = openai.AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", "test-key"))
     return await _call_vision_api(
-        client, image_b64, image_format,
-        context_before, context_after,
-        cfg, retry_cfg,
+        client,
+        image_b64,
+        image_format,
+        context_before,
+        context_after,
+        cfg,
+        retry_cfg,
     )
 
 
@@ -135,15 +137,11 @@ async def replace_image_refs(
             continue
 
         pos = match.start() + offset
-        context_before, context_after = get_surrounding_context(
-            result, pos, cfg.context_chars
-        )
+        context_before, context_after = get_surrounding_context(result, pos, cfg.context_chars)
         if not context_before and doc_title:
             context_before = f"Document: {doc_title}"
 
-        description = await describe_image(
-            img_path, context_before, context_after, cfg, retry_cfg
-        )
+        description = await describe_image(img_path, context_before, context_after, cfg, retry_cfg)
 
         desc_block = f"\n\n**[Image: {description}]**\n\n"
         insert_pos = match.start() + offset

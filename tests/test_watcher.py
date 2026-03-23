@@ -1,14 +1,8 @@
 from __future__ import annotations
 
-import asyncio
-import time
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
-
-from docpipe.config import WatcherConfig
 from docpipe.watcher import DebouncedHandler
 
 

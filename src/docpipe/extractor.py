@@ -1,4 +1,5 @@
 """Extract structured markdown and images from PDF via PyMuPDF4LLM."""
+
 from __future__ import annotations
 
 import logging
@@ -50,10 +51,7 @@ def extract_markdown(
     image_paths: list[Path] = []
     if cfg.write_images:
         stem = pdf_path.stem
-        image_paths = sorted(
-            p for p in image_dir.iterdir()
-            if p.stem.startswith(stem)
-        )
+        image_paths = sorted(p for p in image_dir.iterdir() if p.stem.startswith(stem))
 
     logger.info(
         "Extracted %d chars, %d images from %s",

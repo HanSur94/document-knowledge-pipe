@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 import yaml
 
-from docpipe.config import DocpipeConfig, load_config
+from docpipe.config import load_config
 
 
 class TestLoadConfig:

@@ -1,4 +1,5 @@
 """Build and update the AI-readable registry.md index."""
+
 from __future__ import annotations
 
 import asyncio

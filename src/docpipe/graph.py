@@ -1,7 +1,7 @@
 """LightRAG knowledge graph ingestion."""
+
 from __future__ import annotations
 
-import asyncio
 import logging
 import shutil
 from pathlib import Path

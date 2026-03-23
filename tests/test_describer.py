@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import base64
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -40,7 +38,9 @@ class TestGetSurroundingContext:
 class TestDescribeImage:
     @pytest.mark.asyncio
     @patch("docpipe.describer._call_vision_api", new_callable=AsyncMock)
-    async def test_returns_description(self, mock_api: AsyncMock, tmp_dirs: dict[str, Path]) -> None:
+    async def test_returns_description(
+        self, mock_api: AsyncMock, tmp_dirs: dict[str, Path]
+    ) -> None:
         mock_api.return_value = "A bar chart showing quarterly revenue."
         img = tmp_dirs["output"] / "images" / "test_img.png"
         img.parent.mkdir(parents=True, exist_ok=True)
@@ -52,8 +52,11 @@ class TestDescribeImage:
             b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
         )
         result = await describe_image(
-            img, "preceding text", "following text",
-            DescriberConfig(), ApiRetryConfig(),
+            img,
+            "preceding text",
+            "following text",
+            DescriberConfig(),
+            ApiRetryConfig(),
         )
         assert result == "A bar chart showing quarterly revenue."
 

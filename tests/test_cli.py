@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from click.testing import CliRunner
 
 from docpipe.cli import main

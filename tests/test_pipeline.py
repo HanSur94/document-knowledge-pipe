@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from docpipe.config import DocpipeConfig, load_config
+from docpipe.config import load_config
 from docpipe.pipeline import Lockfile, cleanup_orphans, process_file
 
 
@@ -53,8 +51,16 @@ class TestCleanupOrphans:
 class TestProcessFile:
     @pytest.mark.asyncio
     @patch("docpipe.pipeline.ingest_document", new_callable=AsyncMock, return_value=True)
-    @patch("docpipe.pipeline.generate_summary", new_callable=AsyncMock, return_value=("Summary", "topics"))
-    @patch("docpipe.pipeline.replace_image_refs", new_callable=AsyncMock, side_effect=lambda md, *a, **kw: md)
+    @patch(
+        "docpipe.pipeline.generate_summary",
+        new_callable=AsyncMock,
+        return_value=("Summary", "topics"),
+    )
+    @patch(
+        "docpipe.pipeline.replace_image_refs",
+        new_callable=AsyncMock,
+        side_effect=lambda md, *a, **kw: md,
+    )
     async def test_processes_pdf_end_to_end(
         self,
         mock_replace: AsyncMock,

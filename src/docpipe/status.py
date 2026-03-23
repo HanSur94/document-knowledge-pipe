@@ -1,4 +1,5 @@
 """Status tracking, status.json management, and heartbeat."""
+
 from __future__ import annotations
 
 import json
@@ -112,6 +113,4 @@ class StatusTracker:
 
     def save(self) -> None:
         self._output_dir.mkdir(parents=True, exist_ok=True)
-        self._status_file.write_text(
-            json.dumps(self.to_dict(), indent=2) + "\n"
-        )
+        self._status_file.write_text(json.dumps(self.to_dict(), indent=2) + "\n")

@@ -1,11 +1,12 @@
 """Watchdog-based folder monitor with trailing-edge debounce."""
+
 from __future__ import annotations
 
 import logging
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -94,7 +95,8 @@ class DebouncedHandler(FileSystemEventHandler):
         if files or deleted:
             logger.info(
                 "Debounce flush: %d files to process, %d deletions",
-                len(files), len(deleted),
+                len(files),
+                len(deleted),
             )
             self._callback(files, deleted)
 

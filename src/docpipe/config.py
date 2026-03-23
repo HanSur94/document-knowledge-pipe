@@ -1,4 +1,5 @@
 """Configuration loading and validation."""
+
 from __future__ import annotations
 
 import os
@@ -25,8 +26,18 @@ class ConverterConfig:
     timeout_seconds: int = 120
     supported_extensions: list[str] = field(
         default_factory=lambda: [
-            ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-            ".odt", ".ods", ".odp", ".rtf", ".html", ".epub",
+            ".doc",
+            ".docx",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".odt",
+            ".ods",
+            ".odp",
+            ".rtf",
+            ".html",
+            ".epub",
         ]
     )
 
@@ -53,7 +64,13 @@ class RegistryConfig:
     summary_max_words: int = 30
     include_fields: list[str] = field(
         default_factory=lambda: [
-            "filename", "author", "date", "summary", "topics", "pages", "images",
+            "filename",
+            "author",
+            "date",
+            "summary",
+            "topics",
+            "pages",
+            "images",
         ]
     )
 

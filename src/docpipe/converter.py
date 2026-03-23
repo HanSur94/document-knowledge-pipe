@@ -1,4 +1,5 @@
 """Convert non-PDF documents to PDF via LibreOffice headless."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +7,6 @@ import platform
 import shutil
 import subprocess
 import tempfile
-import unicodedata
 from pathlib import Path
 
 from docpipe.config import ConverterConfig
@@ -56,8 +56,7 @@ def convert_to_pdf(file_path: Path, output_dir: Path, cfg: ConverterConfig) -> P
 
     if file_path.suffix.lower() not in cfg.supported_extensions:
         raise ValueError(
-            f"Unsupported file type: {file_path.suffix}. "
-            f"Supported: {cfg.supported_extensions}"
+            f"Unsupported file type: {file_path.suffix}. Supported: {cfg.supported_extensions}"
         )
 
     soffice = find_libreoffice(cfg)
@@ -77,8 +76,10 @@ def convert_to_pdf(file_path: Path, output_dir: Path, cfg: ConverterConfig) -> P
             "--headless",
             "--norestore",
             "--safe-mode",
-            "--convert-to", "pdf",
-            "--outdir", str(output_dir),
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(output_dir),
             str(source),
         ]
 

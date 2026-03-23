@@ -1,14 +1,11 @@
 """CLI interface for docpipe."""
+
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import logging.handlers
-import shutil
-import signal
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -97,10 +94,7 @@ async def _run_ingest(
         files = [target]
     else:
         supported = set(cfg.converter.supported_extensions) | {".pdf"}
-        files = [
-            f for f in input_dir.iterdir()
-            if f.is_file() and f.suffix.lower() in supported
-        ]
+        files = [f for f in input_dir.iterdir() if f.is_file() and f.suffix.lower() in supported]
 
     console.print(f"Processing {len(files)} file(s)...")
     for f in files:
@@ -147,11 +141,7 @@ def init() -> None:
     if cfg_path.exists():
         console.print("[yellow]config.yaml already exists, skipping[/yellow]")
     else:
-        cfg_path.write_text(
-            "# DocPipe Configuration\n"
-            "input_dir: ./input\n"
-            "output_dir: ./output\n"
-        )
+        cfg_path.write_text("# DocPipe Configuration\ninput_dir: ./input\noutput_dir: ./output\n")
         console.print("Created config.yaml")
 
     for d in ["input", "output", "output/markdown", "output/images", "logs"]:
@@ -192,7 +182,8 @@ def run(config_path: str, dashboard: bool) -> None:
         console.print(f"[green]Watching {cfg.input_dir} (Ctrl+C to stop)[/green]")
 
         if dashboard:
-            with Live(_build_status_table(tracker, cfg), refresh_per_second=0.5, console=console) as live:
+            initial_table = _build_status_table(tracker, cfg)
+            with Live(initial_table, refresh_per_second=0.5, console=console) as live:
                 while observer.is_alive():
                     tracker.heartbeat()
                     tracker.save()
@@ -219,7 +210,7 @@ def run(config_path: str, dashboard: bool) -> None:
 
 @main.command()
 @click.option("--config", "config_path", default=DEFAULT_CONFIG, help="Path to config.yaml")
-@click.option("--rebuild-graph", "rebuild", is_flag=True, help="Rebuild LightRAG graph from scratch")
+@click.option("--rebuild-graph", "rebuild", is_flag=True, help="Rebuild graph from scratch")
 @click.argument("file", required=False)
 def ingest(config_path: str, rebuild: bool, file: str | None) -> None:
     """One-shot: process files in input_dir."""
