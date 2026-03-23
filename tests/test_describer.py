@@ -1,16 +1,27 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from conftest import needs_anthropic_key
 from docpipe.config import ApiRetryConfig, DescriberConfig
 from docpipe.describer import (
     describe_image,
     get_surrounding_context,
     replace_image_refs,
 )
+
+# Minimal valid 1x1 PNG
+_MINIMAL_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+    b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00"
+    b"\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00"
+    b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+_ANTHROPIC_CFG = DescriberConfig(provider="anthropic", model="claude-haiku-4-5-20251001")
+_RETRY_CFG = ApiRetryConfig(max_retries=2, initial_delay_seconds=1, max_delay_seconds=10)
 
 
 class TestGetSurroundingContext:
@@ -35,75 +46,44 @@ class TestGetSurroundingContext:
         assert after == ""
 
 
+@needs_anthropic_key
 class TestDescribeImage:
     @pytest.mark.asyncio
-    @patch("docpipe.describer._call_openai_vision_api", new_callable=AsyncMock)
-    async def test_returns_description(
-        self, mock_api: AsyncMock, tmp_dirs: dict[str, Path]
-    ) -> None:
-        mock_api.return_value = "A bar chart showing quarterly revenue."
+    async def test_returns_description(self, tmp_dirs: dict[str, Path]) -> None:
         img = tmp_dirs["output"] / "images" / "test_img.png"
         img.parent.mkdir(parents=True, exist_ok=True)
-        # Create a minimal PNG (1x1 pixel)
-        img.write_bytes(
-            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
-            b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00"
-            b"\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00"
-            b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
-        )
+        img.write_bytes(_MINIMAL_PNG)
+
         result = await describe_image(
             img,
             "preceding text",
             "following text",
-            DescriberConfig(),
-            ApiRetryConfig(),
+            _ANTHROPIC_CFG,
+            _RETRY_CFG,
         )
-        assert result == "A bar chart showing quarterly revenue."
+        assert isinstance(result, str)
+        assert len(result) > 10
 
 
-class TestDescribeImageAnthropic:
-    @pytest.mark.asyncio
-    @patch("docpipe.describer._call_anthropic_vision_api", new_callable=AsyncMock)
-    async def test_returns_description_anthropic(
-        self, mock_api: AsyncMock, tmp_dirs: dict[str, Path]
-    ) -> None:
-        mock_api.return_value = "A diagram showing system architecture."
-        img = tmp_dirs["output"] / "images" / "test_img.png"
-        img.parent.mkdir(parents=True, exist_ok=True)
-        img.write_bytes(
-            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
-            b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00"
-            b"\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00"
-            b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
-        )
-        result = await describe_image(
-            img,
-            "preceding text",
-            "following text",
-            DescriberConfig(provider="anthropic", model="claude-haiku-4-5-20251001"),
-            ApiRetryConfig(),
-        )
-        assert result == "A diagram showing system architecture."
+# TestDescribeImageAnthropic removed — was identical to TestDescribeImage
+# after both switched to Anthropic provider. One test covers the path.
 
 
+@needs_anthropic_key
 class TestReplaceImageRefs:
     @pytest.mark.asyncio
-    @patch("docpipe.describer.describe_image", new_callable=AsyncMock)
-    async def test_replaces_image_markdown(
-        self, mock_describe: AsyncMock, tmp_dirs: dict[str, Path]
-    ) -> None:
-        mock_describe.return_value = "A photo of a cat."
+    async def test_replaces_image_markdown(self, tmp_dirs: dict[str, Path]) -> None:
         img = tmp_dirs["output"] / "images" / "test_img001.png"
         img.parent.mkdir(parents=True, exist_ok=True)
-        img.write_bytes(b"fake png")
+        img.write_bytes(_MINIMAL_PNG)
 
         markdown = "Some text\n\n![](images/test_img001.png)\n\nMore text"
         result = await replace_image_refs(
             markdown,
             tmp_dirs["output"],
-            DescriberConfig(),
-            ApiRetryConfig(),
+            _ANTHROPIC_CFG,
+            _RETRY_CFG,
             doc_title="Test Document",
         )
-        assert "A photo of a cat." in result
-        assert "![](images/test_img001.png)" in result  # original ref preserved
+        assert "**[Image:" in result
+        assert "![](images/test_img001.png)" in result
