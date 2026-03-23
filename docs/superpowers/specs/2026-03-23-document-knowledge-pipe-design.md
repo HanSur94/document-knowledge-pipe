@@ -21,7 +21,7 @@ A standalone Python package that watches a folder for documents, converts them t
 
 ### Approach: Linear Pipeline
 
-Each stage is a separate Python module. The watcher triggers the full pipeline per file. Simple, debuggable, easy to test each stage independently. The 60-second debounce means we never process more than a handful of files at once.
+Each stage is a separate Python module. The watcher triggers the full pipeline per file, **processing files sequentially** (never in parallel) to avoid concurrent write issues with `registry.md` and `status.json`. Simple, debuggable, easy to test each stage independently. The 60-second debounce means we never process more than a handful of files at once.
 
 ### Project Structure
 
@@ -49,7 +49,8 @@ document-knowledge-pipe/
 │       └── docs.yml            # Wiki generation via wiki-gen-action
 ├── pyproject.toml
 ├── config.yaml                 # Default configuration
-├── .env                        # OPENAI_API_KEY
+├── .env                        # OPENAI_API_KEY (excluded from git and package build)
+├── .gitignore
 └── README.md
 ```
 
@@ -105,19 +106,21 @@ INPUT FOLDER (watched)
     │                    ├── kv_store_*.json
     │                    └── vdb_*.json
 
-WATCHER (60s debounce)
+WATCHER (60s trailing-edge debounce, 5min max wait)
     │
-    └── on file change/add → re-runs pipeline for that file
-        on file delete → removes .md + updates registry + removes from LightRAG
+    └── on file change/add → re-runs full pipeline for that file (restart from scratch)
+        on file delete → removes .md + images + registry entry
+                         (graph is NOT pruned — rebuilt on next `docpipe ingest --rebuild-graph`)
 ```
 
 ### Pipeline Stages (per file)
 
-1. **Converter** (`converter.py`): If the file is not a PDF, convert it to PDF via LibreOffice headless. PDFs pass through unchanged.
-2. **Extractor** (`extractor.py`): Use PyMuPDF4LLM to extract structured markdown with images in reading order. Images are saved to `output/images/`.
-3. **Describer** (`describer.py`): Find image references in the markdown. For each image, send it to GPT-4o mini vision along with surrounding text context (configurable, default 500 chars before/after). Replace the image reference with a contextual description while keeping a reference to the original image file.
-4. **Registry** (`registry.py`): Use GPT-4o mini to generate a 1-2 sentence summary and topic tags. Update `registry.md` with the file entry.
-5. **Graph** (`graph.py`): Feed the final markdown into LightRAG for knowledge graph construction.
+0. **Cleanup** (`pipeline.py`): Before processing, remove any orphaned output files from a previous partial run of this document (images, temp PDFs). This ensures a clean restart.
+1. **Converter** (`converter.py`): If the file is not a PDF, convert it to PDF via LibreOffice headless (invoked with `--headless --norestore --safe-mode` to disable macros). PDFs pass through unchanged. **Timeout: 120 seconds** — if LibreOffice hangs, the subprocess is killed and the file is marked as `failed`.
+2. **Extractor** (`extractor.py`): Use PyMuPDF4LLM to extract structured markdown with images in reading order. Images are saved to `output/images/`. Empty or 0-page PDFs are skipped with a warning.
+3. **Describer** (`describer.py`): Find image references in the markdown. For each image, send it to GPT-4o mini vision along with surrounding text context (configurable, default 500 chars before/after). If an image has no preceding text (e.g., first element), the document title is used as context. Replace the image reference with a contextual description while keeping a reference to the original image file. Images are processed **sequentially in batches** (configurable `batch_size`, default 5).
+4. **Registry** (`registry.py`): Use GPT-4o mini to generate a 1-2 sentence summary and topic tags. Update `registry.md` with the file entry. Failed files appear as: `| corrupt.pdf | - | - | Processing failed: [reason] | - | - | - |`
+5. **Graph** (`graph.py`): Feed the final markdown into LightRAG for knowledge graph construction. On re-ingestion of a changed file, the document is inserted with the same document ID — LightRAG's `ainsert` deduplicates by content hash, so changed content creates new graph entries while unchanged content is skipped.
 6. **Status** (`status.py`): Update `status.json` with processing results.
 
 ## Configuration
@@ -132,12 +135,15 @@ output_dir: "./output"
 # Watcher
 watcher:
   enabled: true
-  debounce_seconds: 60
-  poll_interval_seconds: 1
+  debounce_seconds: 60          # trailing-edge: wait 60s of silence after last event
+  max_wait_seconds: 300         # maximum wait before processing even if events continue
+  poll_interval_seconds: 1      # fallback polling for network drives
+  watch_subdirectories: false   # flat input folder only (avoids filename collisions)
 
 # Converter (LibreOffice)
 converter:
   libreoffice_path: null      # auto-detect, or set manually
+  timeout_seconds: 120        # kill LibreOffice if it hangs
   supported_extensions:
     - .doc
     - .docx
@@ -183,29 +189,41 @@ registry:
 graph:
   storage: "file"
   store_dir: "./output/lightrag_store"
-  model: "gpt-4o-mini"
+  model: "gpt-4o-mini"            # LLM for entity/relation extraction
+  embedding_model: "text-embedding-3-small"  # OpenAI embedding model
   max_tokens: 4096
   chunk_size: 1200
   chunk_overlap: 100
+
+# Describer API retry
+describer_retry:
+  max_retries: 3
+  initial_delay_seconds: 1
+  max_delay_seconds: 30          # exponential backoff cap
 
 # Logging
 logging:
   level: "INFO"
   file: "./logs/docpipe.log"
+  max_size_mb: 50                # rotate log after 50MB
+  backup_count: 3                # keep 3 rotated log files
 ```
 
 ## CLI Interface
 
 ```
-docpipe init                   # Create default config.yaml + folder structure
-docpipe run                    # Start watcher (background mode)
-docpipe run --dashboard        # Start watcher with live rich dashboard
-docpipe ingest                 # One-shot: process all files in input_dir
-docpipe ingest report.pdf      # One-shot: process single file
-docpipe status                 # Show rich status table
+docpipe init                          # Create default config.yaml + folder structure
+docpipe run                           # Start watcher (foreground, blocking)
+docpipe run --dashboard               # Start watcher with live rich dashboard
+docpipe ingest                        # One-shot: process all files in input_dir
+docpipe ingest report.pdf             # One-shot: process single file (resolved relative to input_dir)
+docpipe ingest --rebuild-graph        # Re-process all files and rebuild LightRAG graph from scratch
+docpipe status                        # Show rich status table
 ```
 
 All commands accept `--config path/to/config.yaml` (defaults to `./config.yaml`).
+
+**Note:** `docpipe run` is a **foreground blocking process** (not a daemon). This is the safest cross-platform behavior for Windows. To run in background on Windows, use `start /B docpipe run` or run it as a scheduled task. A lockfile (`output/.docpipe.lock`) prevents concurrent `docpipe run` and `docpipe ingest` from processing the same files simultaneously.
 
 ## Status & Monitoring
 
@@ -240,6 +258,7 @@ Auto-refreshing version of the above, updates in real-time as files are processe
 {
   "watcher": "running",
   "started_at": "2026-03-23T10:00:00",
+  "last_heartbeat_at": "2026-03-23T12:34:56",
   "files": {
     "report_q4.pdf": {
       "status": "done",
@@ -257,7 +276,9 @@ Auto-refreshing version of the above, updates in real-time as files are processe
   },
   "api_usage": {
     "tokens_today": 1247,
-    "estimated_cost_usd": 0.002
+    "estimated_cost_usd": 0.002,
+    "day_reset": "2026-03-23",
+    "tokens_total": 45230
   }
 }
 ```
@@ -281,11 +302,17 @@ Concise enough for an agent to scan without flooding its context, detailed enoug
 
 | Scenario | Behavior |
 |----------|----------|
-| LibreOffice not found | Clear error message with install link |
-| GPT-4o mini API failure | Retry 3x with exponential backoff, then insert `[image description unavailable]` placeholder |
+| LibreOffice not found | Clear error message with install link, exit |
+| LibreOffice hangs | Kill subprocess after 120s (configurable), mark file as `failed` |
+| GPT-4o mini API failure | Retry 3x with exponential backoff (1s → 30s cap), then insert `[image description unavailable]` placeholder |
 | Corrupt/unreadable file | Log warning, skip file, mark as `failed` in registry and status.json |
+| Empty/0-page PDF | Log warning, skip file, mark as `skipped` in registry |
 | File locked (Windows) | Retry after 5s, up to 3 attempts |
+| File renamed during processing | Catch `FileNotFoundError`, log warning, skip |
 | LightRAG ingestion failure | Log error, markdown still gets written (graph is non-blocking) |
+| Partial run crash | Next run cleans up orphaned outputs and restarts from scratch |
+| Concurrent run/ingest | Lockfile prevents simultaneous processing |
+| Unicode filenames (Windows) | Files are copied to a temp dir with ASCII-safe names for LibreOffice conversion |
 
 The pipeline is **fault-tolerant per file** — one bad file never blocks the rest.
 
@@ -312,7 +339,7 @@ Jobs:
 
 ### Docs (`docs.yml`) — On push to main
 
-Uses `HanSur94/wiki-gen-action@v1` to auto-generate and publish GitHub wiki documentation.
+Uses `HanSur94/wiki-gen-action@v1` to auto-generate and publish GitHub wiki documentation. Note: the wiki action uses the Anthropic API (Claude) — the GPT-4o mini/GPT-5 constraint applies to the **runtime pipeline** only, not CI tooling.
 
 ```yaml
 jobs:
@@ -349,3 +376,7 @@ Agents interact with the pipeline outputs through:
 5. **uv over pip** — handles native builds (hnswlib) more reliably on Windows
 6. **YAML config** — all settings configurable, sensible defaults for quick start
 7. **Linear pipeline** — simplest architecture, sufficient for 60s debounce workload
+8. **Foreground watcher** — cross-platform safe, no daemon complexity on Windows
+9. **Trailing-edge debounce** — waits for file writes to finish (important for large files on Windows), with 5min max wait cap
+10. **Graph deletion is deferred** — deleting a source file removes markdown/registry entries immediately, but graph cleanup requires `docpipe ingest --rebuild-graph` (LightRAG has no per-document delete API for file-based storage)
+11. **Sequential file processing** — avoids concurrent write issues with shared state (registry, status, graph)
