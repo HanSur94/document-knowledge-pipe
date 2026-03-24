@@ -16,19 +16,25 @@ async def _get_rag_instance(cfg: GraphConfig) -> Any:  # noqa: ANN401
     """Create and initialize a LightRAG instance."""
     from lightrag import LightRAG
     from lightrag.llm.openai import openai_complete, openai_embed
+    from lightrag.utils import EmbeddingFunc
 
     store_dir = Path(cfg.store_dir)
     store_dir.mkdir(parents=True, exist_ok=True)
+
+    embedding = EmbeddingFunc(
+        embedding_dim=1536,
+        func=openai_embed.func,
+        max_token_size=8192,
+        model_name=cfg.embedding_model,
+    )
 
     rag = LightRAG(
         working_dir=str(store_dir),
         llm_model_func=openai_complete,
         llm_model_name=cfg.model,
-        llm_model_max_tokens=cfg.max_tokens,
-        embedding_func=openai_embed,
-        embedding_model_name=cfg.embedding_model,
-        chunk_size=cfg.chunk_size,
-        chunk_overlap_size=cfg.chunk_overlap,
+        embedding_func=embedding,
+        chunk_token_size=cfg.chunk_size,
+        chunk_overlap_token_size=cfg.chunk_overlap,
     )
 
     await rag.initialize_storages()
