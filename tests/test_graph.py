@@ -9,6 +9,17 @@ from docpipe.config import GraphConfig
 from docpipe.graph import ingest_document, rebuild_graph
 
 
+class TestGraphConfigProvider:
+    def test_graph_config_has_provider_field(self) -> None:
+        cfg = GraphConfig()
+        assert cfg.provider == "openai"
+
+    def test_graph_config_has_nested_openai(self) -> None:
+        cfg = GraphConfig()
+        assert cfg.openai.model == "gpt-4o-mini"
+        assert cfg.openai.embedding_dim == 1536
+
+
 @needs_openai_key
 class TestIngestDocument:
     @pytest.mark.asyncio
