@@ -37,12 +37,21 @@ extractor:
 
 # Describer (vision LLM)
 describer:
-  provider: "openai"            # "openai" or "anthropic"
-  model: "gpt-4o-mini"          # or "claude-haiku-4-5-20251001" for anthropic
+  provider: "openai"            # "openai", "azure", or "anthropic"
   max_tokens: 300
   include_context: true
   context_chars: 500
   batch_size: 5
+
+  openai:
+    model: "gpt-4o-mini"
+  azure:
+    model: "gpt-4o-mini"
+    endpoint: ""                # Set to your Azure endpoint
+    deployment: ""              # Set to your Azure deployment name
+    api_version: "2024-06-01"
+  anthropic:
+    model: "claude-haiku-4-5-20251001"
 
 # Registry
 registry:
@@ -57,17 +66,29 @@ registry:
     - pages
     - images
 
-# Knowledge Graph (LightRAG)
+# Knowledge Graph (LightRAG) — OpenAI or Azure only
 graph:
+  provider: "openai"            # "openai" or "azure" (no anthropic — no embedding API)
   storage: "file"
   store_dir: "./output/lightrag_store"
-  model: "gpt-4o-mini"
-  embedding_model: "text-embedding-3-small"
   max_tokens: 4096
   chunk_size: 1200
   chunk_overlap: 100
 
-# API retry (applies to all OpenAI calls)
+  openai:
+    model: "gpt-4o-mini"
+    embedding_model: "text-embedding-3-small"
+    embedding_dim: 1536
+  azure:
+    model: "gpt-4o-mini"
+    embedding_model: "text-embedding-3-small"
+    embedding_dim: 1536
+    endpoint: ""
+    deployment: ""
+    embedding_deployment: ""
+    api_version: "2024-06-01"
+
+# API retry (applies to all provider calls)
 api_retry:
   max_retries: 3
   initial_delay_seconds: 1
