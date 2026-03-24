@@ -2,7 +2,34 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from docpipe.config import ApiRetryConfig, RegistryConfig
+from docpipe.providers.base import LLMProvider
 from docpipe.registry import RegistryEntry, update_registry
+
+
+class _MockProvider(LLMProvider):
+    def __init__(self) -> None:
+        super().__init__(ApiRetryConfig(max_retries=0, initial_delay_seconds=0, max_delay_seconds=0))
+
+    async def _complete_raw(self, prompt: str, max_tokens: int) -> str:
+        return "SUMMARY: A test document\nTOPICS: testing, docs"
+
+    async def _vision_raw(self, prompt: str, image_b64: str, media_type: str, max_tokens: int) -> str:
+        return ""
+
+
+class TestGenerateSummary:
+    @pytest.mark.asyncio
+    async def test_returns_summary_and_topics(self) -> None:
+        from docpipe.registry import generate_summary
+
+        cfg = RegistryConfig()
+        provider = _MockProvider()
+        summary, topics = await generate_summary("# Test\nSome content", cfg, provider)
+        assert summary == "A test document"
+        assert "testing" in topics
 
 
 class TestRegistryEntry:
