@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from conftest import needs_anthropic_key
 
-from docpipe.config import ApiRetryConfig, DescriberConfig
+from docpipe.config import AnthropicProviderConfig, ApiRetryConfig, DescriberConfig
 from docpipe.describer import (
     describe_image,
     get_surrounding_context,
@@ -20,7 +20,10 @@ _MINIMAL_PNG = (
     b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
 )
 
-_ANTHROPIC_CFG = DescriberConfig(provider="anthropic", model="claude-haiku-4-5-20251001")
+_ANTHROPIC_CFG = DescriberConfig(
+    provider="anthropic",
+    anthropic=AnthropicProviderConfig(model="claude-haiku-4-5-20251001"),
+)
 _RETRY_CFG = ApiRetryConfig(max_retries=2, initial_delay_seconds=1, max_delay_seconds=10)
 
 
