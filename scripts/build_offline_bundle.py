@@ -69,7 +69,7 @@ PYTHON_SHA256 = ""  # Set to known-good hash from python.org when pinning
 GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 GET_PIP_SHA256 = ""  # Set to known-good hash from bootstrap.pypa.io when pinning
 
-LIBREOFFICE_VERSION = "24.8.4"
+LIBREOFFICE_VERSION = "25.8.5"
 LIBREOFFICE_URL = (
     f"https://download.documentfoundation.org/libreoffice/stable/{LIBREOFFICE_VERSION}/"
     f"win/x86_64/LibreOffice_{LIBREOFFICE_VERSION}_Win_x86-64.msi"
