@@ -688,8 +688,11 @@ def build(args: argparse.Namespace) -> int:
     if pth_file.exists():
         text = pth_file.read_text()
         text = text.replace("#import site", "import site")
+        # Add src/ to sys.path so docpipe is importable
+        # (embeddable Python ignores PYTHONPATH when ._pth exists)
+        text += "\n../../src\n"
         pth_file.write_text(text)
-        ok("Patched python311._pth (uncommented import site)")
+        ok("Patched python311._pth (import site + src path)")
     else:
         warn("python311._pth not found — pip may not work correctly")
 
