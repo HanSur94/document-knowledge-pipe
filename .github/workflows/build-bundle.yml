@@ -136,6 +136,7 @@ jobs:
         run: |
           $bundle = (Get-ChildItem -Directory -Filter "docpipe-win64").FullName
           $python = Join-Path $bundle "runtime\python\python.exe"
+          $env:PYTHONPATH = Join-Path $bundle "src"
 
           $errors = 0
 

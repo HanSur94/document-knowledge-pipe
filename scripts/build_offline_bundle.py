@@ -515,6 +515,7 @@ REM -------------------------------------------------------
 echo [Step 4/4] Verifying installation...
 echo.
 
+set PYTHONPATH=%ROOT%src
 "%PYTHON%" --version >nul 2>&1
 if %ERRORLEVEL% equ 0 (
     for /f "delims=" %%v in ('"%PYTHON%" --version') do echo   [OK] %%v
