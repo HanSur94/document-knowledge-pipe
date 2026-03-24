@@ -50,6 +50,11 @@ class ExtractorConfig:
 
 
 @dataclass
+class OpenAIProviderConfig:
+    model: str = "gpt-4o-mini"
+
+
+@dataclass
 class DescriberConfig:
     provider: str = "openai"  # "openai" or "anthropic"
     model: str = "gpt-4o-mini"
