@@ -15,8 +15,12 @@ logger = logging.getLogger(__name__)
 async def _get_rag_instance(cfg: GraphConfig) -> Any:  # noqa: ANN401
     """Create and initialize a LightRAG instance."""
     from lightrag import LightRAG
+    from lightrag.kg.shared_storage import finalize_share_data
     from lightrag.llm.openai import openai_complete, openai_embed
     from lightrag.utils import EmbeddingFunc
+
+    # Reset LightRAG global state so locks bind to the current event loop.
+    finalize_share_data()
 
     store_dir = Path(cfg.store_dir)
     store_dir.mkdir(parents=True, exist_ok=True)
