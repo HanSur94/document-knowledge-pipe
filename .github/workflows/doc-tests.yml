@@ -52,6 +52,67 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: uv run pytest tests/test_e2e_anthropic.py -v --tb=short
 
+  example-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install LibreOffice
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer libreoffice-calc libreoffice-impress
+
+      - run: uv sync --dev
+
+      - name: Ingest all example documents
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        working-directory: examples
+        run: uv run docpipe ingest --config config.yaml
+
+      - name: Verify outputs exist
+        working-directory: examples
+        run: |
+          echo "=== Markdown files ==="
+          ls -lh output/markdown/
+
+          md_count=$(ls output/markdown/*.md 2>/dev/null | wc -l)
+          echo "Markdown files generated: $md_count"
+
+          if [ "$md_count" -lt 1 ]; then
+            echo "ERROR: No markdown files generated"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== Registry ==="
+          if [ -f output/registry.md ]; then
+            echo "Registry exists"
+            head -20 output/registry.md
+          else
+            echo "ERROR: registry.md not found"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== Status ==="
+          if [ -f output/status.json ]; then
+            echo "status.json exists"
+            cat output/status.json
+          else
+            echo "ERROR: status.json not found"
+            exit 1
+          fi
+
+      - name: Check status command
+        working-directory: examples
+        run: uv run docpipe status --config config.yaml
+
   full-system:
     runs-on: ubuntu-latest
     steps:

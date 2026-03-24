@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation - DocPipe REST API v1</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #333; }
+        h1 { color: #1a1a2e; border-bottom: 2px solid #e94560; padding-bottom: 10px; }
+        h2 { color: #16213e; margin-top: 30px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+        pre { background: #1a1a2e; color: #e8e8e8; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .method { display: inline-block; padding: 3px 8px; border-radius: 3px; color: white; font-weight: bold; font-size: 0.85em; }
+        .get { background: #61affe; }
+        .post { background: #49cc90; }
+        .delete { background: #f93e3e; }
+        table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <h1>DocPipe REST API v1</h1>
+    <p>Base URL: <code>https://api.docpipe.io/v1</code></p>
+    <p>All endpoints require an API key via the <code>Authorization: Bearer &lt;key&gt;</code> header.</p>
+
+    <h2>Authentication</h2>
+    <p><span class="method post">POST</span> <code>/auth/token</code></p>
+    <p>Exchange credentials for an access token.</p>
+    <pre>{
+  "email": "user@example.com",
+  "password": "secret"
+}</pre>
+    <p>Response:</p>
+    <pre>{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "expires_in": 3600
+}</pre>
+
+    <h2>Documents</h2>
+
+    <h3><span class="method post">POST</span> <code>/documents</code></h3>
+    <p>Upload a document for processing. Accepts multipart/form-data.</p>
+    <table>
+        <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+        <tr><td>file</td><td>binary</td><td>Yes</td><td>The document file (PDF, DOCX, PPTX, etc.)</td></tr>
+        <tr><td>config</td><td>JSON</td><td>No</td><td>Processing configuration overrides</td></tr>
+        <tr><td>callback_url</td><td>string</td><td>No</td><td>Webhook URL for completion notification</td></tr>
+    </table>
+
+    <h3><span class="method get">GET</span> <code>/documents</code></h3>
+    <p>List all documents with pagination.</p>
+    <table>
+        <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        <tr><td>page</td><td>integer</td><td>1</td><td>Page number</td></tr>
+        <tr><td>per_page</td><td>integer</td><td>20</td><td>Items per page (max 100)</td></tr>
+        <tr><td>status</td><td>string</td><td>all</td><td>Filter: pending, processing, completed, failed</td></tr>
+    </table>
+
+    <h3><span class="method get">GET</span> <code>/documents/{id}</code></h3>
+    <p>Get document details and processing status.</p>
+
+    <h3><span class="method get">GET</span> <code>/documents/{id}/markdown</code></h3>
+    <p>Download the converted markdown output.</p>
+
+    <h3><span class="method delete">DELETE</span> <code>/documents/{id}</code></h3>
+    <p>Delete a document and all associated outputs.</p>
+
+    <h2>Knowledge Graph</h2>
+
+    <h3><span class="method get">GET</span> <code>/graph/query</code></h3>
+    <p>Query the knowledge graph built from processed documents.</p>
+    <table>
+        <tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr>
+        <tr><td>q</td><td>string</td><td>Yes</td><td>Natural language query</td></tr>
+        <tr><td>mode</td><td>string</td><td>No</td><td>Search mode: naive, local, global, hybrid (default: hybrid)</td></tr>
+        <tr><td>top_k</td><td>integer</td><td>No</td><td>Number of results (default: 10)</td></tr>
+    </table>
+
+    <h2>Rate Limits</h2>
+    <table>
+        <tr><th>Plan</th><th>Requests/min</th><th>Documents/day</th><th>Max file size</th></tr>
+        <tr><td>Free</td><td>10</td><td>50</td><td>10 MB</td></tr>
+        <tr><td>Pro</td><td>60</td><td>500</td><td>50 MB</td></tr>
+        <tr><td>Enterprise</td><td>300</td><td>Unlimited</td><td>200 MB</td></tr>
+    </table>
+
+    <h2>Error Codes</h2>
+    <table>
+        <tr><th>Code</th><th>Description</th></tr>
+        <tr><td>400</td><td>Bad request — invalid parameters</td></tr>
+        <tr><td>401</td><td>Unauthorized — invalid or expired token</td></tr>
+        <tr><td>404</td><td>Document not found</td></tr>
+        <tr><td>413</td><td>File too large</td></tr>
+        <tr><td>429</td><td>Rate limit exceeded</td></tr>
+        <tr><td>500</td><td>Internal server error</td></tr>
+    </table>
+</body>
+</html>
