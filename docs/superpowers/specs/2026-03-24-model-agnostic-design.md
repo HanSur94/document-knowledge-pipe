@@ -79,7 +79,7 @@ class LLMProvider(ABC):
                     raise
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self._retry_cfg.max_delay_seconds)
-        raise ProviderError("Exhausted retries")
+        raise ProviderError("Exhausted retries")  # unreachable — loop re-raises on last attempt
 ```
 
 **Template method pattern:** Consumers call the public `complete()` / `vision()` methods which handle retry. Adapters implement `_complete_raw()` / `_vision_raw()` which make a single API call and raise `ProviderError` on failure. This prevents duplicate retry loops.
@@ -195,6 +195,50 @@ class GraphAzureConfig:
     api_version: str = "2024-06-01"
 ```
 
+#### Updated Top-Level Config Dataclasses
+
+The flat `model` and `embedding_model` fields are **removed** from `DescriberConfig` and `GraphConfig`. They are replaced by nested provider config objects.
+
+```python
+@dataclass
+class DescriberConfig:
+    provider: str = "openai"  # "openai", "azure", or "anthropic"
+    max_tokens: int = 300
+    include_context: bool = True
+    context_chars: int = 500
+    batch_size: int = 5
+    openai: OpenAIProviderConfig = field(default_factory=OpenAIProviderConfig)
+    azure: AzureProviderConfig = field(default_factory=AzureProviderConfig)
+    anthropic: AnthropicProviderConfig = field(default_factory=AnthropicProviderConfig)
+
+@dataclass
+class GraphConfig:
+    provider: str = "openai"  # "openai" or "azure" only
+    storage: str = "file"
+    store_dir: str = "./output/lightrag_store"
+    max_tokens: int = 4096
+    chunk_size: int = 1200
+    chunk_overlap: int = 100
+    openai: GraphOpenAIConfig = field(default_factory=GraphOpenAIConfig)
+    azure: GraphAzureConfig = field(default_factory=GraphAzureConfig)
+
+@dataclass
+class DocpipeConfig:
+    input_dir: Path
+    output_dir: Path
+    # openai_api_key and anthropic_api_key are REMOVED — providers read keys from os.environ
+    watcher: WatcherConfig = field(default_factory=WatcherConfig)
+    converter: ConverterConfig = field(default_factory=ConverterConfig)
+    extractor: ExtractorConfig = field(default_factory=ExtractorConfig)
+    describer: DescriberConfig = field(default_factory=DescriberConfig)
+    registry: RegistryConfig = field(default_factory=RegistryConfig)
+    graph: GraphConfig = field(default_factory=GraphConfig)
+    api_retry: ApiRetryConfig = field(default_factory=ApiRetryConfig)
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
+```
+
+`load_config()` must also remove the `openai_api_key=os.environ.get(...)` and `anthropic_api_key=os.environ.get(...)` lines from the `DocpipeConfig(...)` constructor call.
+
 #### Config Validation
 
 `load_config()` validates after loading:
@@ -207,17 +251,25 @@ class GraphAzureConfig:
 The current `_merge_dataclass()` is flat — it passes raw dicts for nested keys. It must be extended to handle nested dataclass fields recursively:
 
 ```python
+import typing
+
 def _merge_dataclass(cls, data):
-    """Create a dataclass instance, recursively deserializing nested dataclass fields."""
+    """Create a dataclass instance, recursively deserializing nested dataclass fields.
+
+    Uses typing.get_type_hints() to resolve forward references, which is
+    necessary when 'from __future__ import annotations' is active (annotations
+    are stored as strings, so dataclasses.is_dataclass() would fail on them).
+    """
     if data is None:
         return cls()
-    valid_fields = {f.name: f for f in dataclasses.fields(cls)}
+    valid_fields = {f.name for f in dataclasses.fields(cls)}
+    hints = typing.get_type_hints(cls)
     filtered = {}
     for k, v in data.items():
         if k not in valid_fields:
             continue
-        field_type = valid_fields[k].type
-        if dataclasses.is_dataclass(field_type) and isinstance(v, dict):
+        field_type = hints.get(k)
+        if field_type and dataclasses.is_dataclass(field_type) and isinstance(v, dict):
             filtered[k] = _merge_dataclass(field_type, v)
         else:
             filtered[k] = v
@@ -246,14 +298,44 @@ The top-level `openai_api_key` and `anthropic_api_key` fields are removed from `
 #### `describer.py`
 - Remove all direct `openai`/`anthropic` SDK imports
 - Remove `_call_openai_vision_api()` and `_call_anthropic_vision_api()` functions
-- `describe_image()` receives an `LLMProvider` instance and calls `provider.vision()`
-- `replace_image_refs()` accepts an `LLMProvider` parameter instead of `DescriberConfig.provider`
+- Remove `retry_cfg` parameter — retry is now handled inside `LLMProvider._retry()`
+- New signatures:
+
+```python
+async def describe_image(
+    image_path: Path,
+    context_before: str,
+    context_after: str,
+    provider: LLMProvider,
+    max_tokens: int = 300,
+) -> str:
+
+async def replace_image_refs(
+    markdown: str,
+    output_dir: Path,
+    cfg: DescriberConfig,   # still needed for include_context, context_chars, batch_size
+    provider: LLMProvider,
+    doc_title: str = "",
+) -> str:
+```
+
 - Prompt building and image loading logic unchanged
 
 #### `registry.py`
 - Remove direct `openai`/`anthropic` SDK imports and the if/else provider dispatch in `generate_summary()`
 - Remove hardcoded model names (`"gpt-4o-mini"`, `"claude-haiku-4-5-20251001"`) — models come from provider config
-- `generate_summary()` receives an `LLMProvider` instance and calls `provider.complete()`
+- Remove `retry_cfg` parameter — retry handled by provider
+- `generate_summary()` new signature:
+
+```python
+async def generate_summary(
+    markdown: str,
+    cfg: RegistryConfig,
+    provider: LLMProvider,
+) -> tuple[str, str]:
+```
+
+- `max_tokens` for summary calls uses a fixed value of `200` (matching current behavior). This is not configurable — the prompt is tightly coupled to this token budget via `summary_max_words`.
 - Response parsing (SUMMARY:/TOPICS: format) unchanged
 - **Registry shares the describer's provider.** There is no separate `registry.provider` config — `pipeline.py` creates one `LLMProvider` from `cfg.describer` and passes it to both `replace_image_refs()` and `generate_summary()`
 
@@ -272,8 +354,10 @@ The top-level `openai_api_key` and `anthropic_api_key` fields are removed from `
      - `OPENAI_API_VERSION` = `cfg.azure.api_version`
   2. Passing deployment names as model names to LightRAG (Azure maps deployments → models)
   3. Using `cfg.azure.embedding_dim` instead of the hardcoded `1536`
-  4. Note: env var mutation is scoped to `_get_rag_instance()` — values are set before LightRAG init and can be restored after if needed for test isolation
+  4. **Concurrency constraint:** `os.environ` is process-global, so `_get_rag_instance()` must not be called concurrently. The current pipeline processes files sequentially, so this is safe. If parallel file processing is added later, graph ingestion must be serialized (e.g., via an `asyncio.Lock`)
+  5. For test isolation, env vars can be restored after LightRAG init via a context manager
 - Config validation rejects `provider == "anthropic"` for graph
+- **LightRAG version constraint:** The env var names above (`AZURE_OPENAI_ENDPOINT`, `OPENAI_API_VERSION`) are based on `lightrag-hku>=1.0.0` as pinned in `pyproject.toml`. If the LightRAG version changes, verify env var names still match
 
 ### Error Handling
 
