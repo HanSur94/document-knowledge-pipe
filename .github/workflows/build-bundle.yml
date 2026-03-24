@@ -1,0 +1,196 @@
+name: Windows Offline Bundle
+
+on:
+  workflow_call:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Bundle version string"
+        required: false
+        default: "dev"
+
+jobs:
+  build-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv and p7zip
+        run: |
+          pip install uv
+          sudo apt-get update && sudo apt-get install -y p7zip-full
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "version=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ inputs.version || 'dev' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build offline bundle
+        run: python scripts/build_offline_bundle.py --version ${{ steps.version.outputs.version }}
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docpipe-bundle
+          path: dist/docpipe-*.zip
+          retention-days: 30
+
+      - name: Upload bundle to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/docpipe-*.zip --clobber
+
+  test-installer:
+    runs-on: windows-latest
+    needs: build-bundle
+    timeout-minutes: 15
+    steps:
+      - name: Download bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docpipe-bundle
+
+      - name: Extract bundle zip
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Filter "docpipe-*.zip" | Select-Object -First 1
+          Write-Host "Extracting $($zip.Name) ..."
+          Expand-Archive -Path $zip.FullName -DestinationPath . -Force
+          Get-ChildItem -Recurse -Depth 1
+
+      - name: Verify bundle contents
+        shell: pwsh
+        run: |
+          $bundle = Get-ChildItem -Directory -Filter "docpipe-win64" | Select-Object -First 1
+          if (-not $bundle) { throw "Bundle directory docpipe-win64 not found" }
+          $root = $bundle.FullName
+
+          $requiredFiles = @(
+            "install.bat",
+            "docpipe.bat",
+            "README.txt",
+            "config.yaml",
+            ".env.example",
+            "requirements-windows.txt",
+            "runtime\python\python.exe",
+            "runtime\python\get-pip.py"
+          )
+
+          $errors = 0
+          foreach ($f in $requiredFiles) {
+            $path = Join-Path $root $f
+            if (Test-Path $path) {
+              Write-Host "[OK] $f"
+            } else {
+              Write-Host "[FAIL] Missing: $f"
+              $errors++
+            }
+          }
+
+          # Check wheel count
+          $wheels = Get-ChildItem -Path (Join-Path $root "vendor\pip-wheels") -Filter "*.whl" -ErrorAction SilentlyContinue
+          $tarballs = Get-ChildItem -Path (Join-Path $root "vendor\pip-wheels") -Filter "*.tar.gz" -ErrorAction SilentlyContinue
+          $wheelCount = ($wheels | Measure-Object).Count + ($tarballs | Measure-Object).Count
+          Write-Host "Wheel/package count: $wheelCount"
+          if ($wheelCount -lt 15) {
+            Write-Host "[FAIL] Expected >= 15 wheels, got $wheelCount"
+            $errors++
+          } else {
+            Write-Host "[OK] $wheelCount packages found"
+          }
+
+          # Check LibreOffice
+          $soffice = Join-Path $root "runtime\libreoffice\program\soffice.exe"
+          if (Test-Path $soffice) {
+            Write-Host "[OK] LibreOffice soffice.exe found"
+          } else {
+            Write-Host "[FAIL] LibreOffice soffice.exe not found"
+            $errors++
+          }
+
+          if ($errors -gt 0) { throw "$errors verification error(s)" }
+
+      - name: Run install.bat
+        shell: pwsh
+        run: |
+          $bundle = (Get-ChildItem -Directory -Filter "docpipe-win64").FullName
+          cmd /c "cd /d $bundle && install.bat" | Tee-Object -FilePath install-log.txt
+          Write-Host "install.bat exit code: $LASTEXITCODE"
+
+      - name: Verify installation
+        shell: pwsh
+        run: |
+          $bundle = (Get-ChildItem -Directory -Filter "docpipe-win64").FullName
+          $python = Join-Path $bundle "runtime\python\python.exe"
+
+          $errors = 0
+
+          # Verify pip installed
+          & $python -m pip --version
+          if ($LASTEXITCODE -ne 0) { Write-Host "[FAIL] pip not installed"; $errors++ }
+          else { Write-Host "[OK] pip installed" }
+
+          # Verify docpipe importable
+          & $python -c "import docpipe; print('docpipe OK')"
+          if ($LASTEXITCODE -ne 0) { Write-Host "[FAIL] docpipe not importable"; $errors++ }
+          else { Write-Host "[OK] docpipe importable" }
+
+          # Verify click importable
+          & $python -c "import click; print('click OK')"
+          if ($LASTEXITCODE -ne 0) { Write-Host "[FAIL] click not importable"; $errors++ }
+          else { Write-Host "[OK] click importable" }
+
+          # Verify anthropic importable
+          & $python -c "import anthropic; print('anthropic OK')"
+          if ($LASTEXITCODE -ne 0) { Write-Host "[FAIL] anthropic not importable"; $errors++ }
+          else { Write-Host "[OK] anthropic importable" }
+
+          # Verify .env created
+          if (Test-Path (Join-Path $bundle ".env")) {
+            Write-Host "[OK] .env file created"
+          } else {
+            Write-Host "[FAIL] .env file not created"
+            $errors++
+          }
+
+          if ($errors -gt 0) { throw "$errors verification error(s)" }
+
+      - name: Test docpipe.bat
+        shell: pwsh
+        run: |
+          $bundle = (Get-ChildItem -Directory -Filter "docpipe-win64").FullName
+
+          Write-Host "=== docpipe.bat --help ==="
+          cmd /c "cd /d $bundle && docpipe.bat --help" | Tee-Object -FilePath docpipe-help.txt
+
+          Write-Host "=== docpipe.bat init ==="
+          cmd /c "cd /d $bundle && docpipe.bat init" | Tee-Object -FilePath docpipe-init.txt
+
+          Write-Host "=== docpipe.bat status --config config.yaml ==="
+          cmd /c "cd /d $bundle && docpipe.bat status --config config.yaml" | Tee-Object -FilePath docpipe-status.txt
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-test-logs
+          path: |
+            install-log.txt
+            docpipe-help.txt
+            docpipe-init.txt
+            docpipe-status.txt
+          retention-days: 30
