@@ -23,9 +23,12 @@ class TestIngestDocumentFailure:
     """Failure path — no API key needed since error occurs before any API call."""
 
     @pytest.mark.asyncio
-    async def test_handles_ingestion_failure(self) -> None:
-        # /dev/null/impossible triggers error at mkdir() before any API call
-        cfg = GraphConfig(store_dir="/dev/null/impossible/path")
+    async def test_handles_ingestion_failure(self, tmp_path: Path) -> None:
+        # Create a file where the store directory would need to be created.
+        # mkdir(parents=True) fails on all platforms when a parent is a file.
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a directory")
+        cfg = GraphConfig(store_dir=str(blocker / "nested" / "store"))
         result = await ingest_document("# Test", "test_doc", cfg)
         assert result is False
 
