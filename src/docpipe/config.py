@@ -63,6 +63,11 @@ class AzureProviderConfig:
 
 
 @dataclass
+class AnthropicProviderConfig:
+    model: str = "claude-haiku-4-5-20251001"
+
+
+@dataclass
 class DescriberConfig:
     provider: str = "openai"  # "openai" or "anthropic"
     model: str = "gpt-4o-mini"
