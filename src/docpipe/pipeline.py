@@ -12,6 +12,7 @@ from docpipe.converter import convert_to_pdf
 from docpipe.describer import replace_image_refs
 from docpipe.extractor import extract_markdown
 from docpipe.graph import ingest_document
+from docpipe.providers import create_provider
 from docpipe.registry import RegistryEntry, generate_summary, update_registry
 from docpipe.status import StatusTracker
 
@@ -77,6 +78,11 @@ async def process_file(file_path: Path, cfg: DocpipeConfig) -> bool:
         tracker.update_file(file_path.name, status="processing")
         tracker.save()
 
+        # Create LLM provider (shared by describer and registry)
+        provider_name = cfg.describer.provider
+        provider_cfg = getattr(cfg.describer, provider_name)
+        provider = create_provider(provider_name, provider_cfg, cfg.api_retry)
+
         # Stage 0: Cleanup orphans
         cleanup_orphans(doc_stem, cfg.output_dir)
 
@@ -116,7 +122,7 @@ async def process_file(file_path: Path, cfg: DocpipeConfig) -> bool:
             result.markdown,
             cfg.output_dir,
             cfg.describer,
-            cfg.api_retry,
+            provider,
             doc_title=doc_stem,
         )
 
@@ -125,9 +131,7 @@ async def process_file(file_path: Path, cfg: DocpipeConfig) -> bool:
         md_path.write_text(markdown, encoding="utf-8")
 
         # Stage 4: Update registry
-        summary, topics = await generate_summary(
-            markdown, cfg.registry, cfg.api_retry, provider=cfg.describer.provider
-        )
+        summary, topics = await generate_summary(markdown, cfg.registry, provider)
         reg_entry = RegistryEntry(
             filename=f"{doc_stem}.md",
             author="-",
