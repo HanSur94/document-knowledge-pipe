@@ -55,6 +55,14 @@ class OpenAIProviderConfig:
 
 
 @dataclass
+class AzureProviderConfig:
+    model: str = "gpt-4o-mini"
+    endpoint: str = ""
+    deployment: str = ""
+    api_version: str = "2024-06-01"
+
+
+@dataclass
 class DescriberConfig:
     provider: str = "openai"  # "openai" or "anthropic"
     model: str = "gpt-4o-mini"
