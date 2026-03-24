@@ -38,7 +38,6 @@ async def _get_rag_instance(cfg: GraphConfig) -> Any:  # noqa: ANN401
     )
 
     await rag.initialize_storages()
-    await rag.initialize_pipeline_status()
     return rag
 
 
