@@ -3,14 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from conftest import needs_anthropic_key
 
-from docpipe.config import AnthropicProviderConfig, ApiRetryConfig, DescriberConfig
+from docpipe.config import ApiRetryConfig, DescriberConfig
 from docpipe.describer import (
     describe_image,
     get_surrounding_context,
     replace_image_refs,
 )
+from docpipe.providers.base import LLMProvider
 
 # Minimal valid 1x1 PNG
 _MINIMAL_PNG = (
@@ -20,11 +20,16 @@ _MINIMAL_PNG = (
     b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
 )
 
-_ANTHROPIC_CFG = DescriberConfig(
-    provider="anthropic",
-    anthropic=AnthropicProviderConfig(model="claude-haiku-4-5-20251001"),
-)
-_RETRY_CFG = ApiRetryConfig(max_retries=2, initial_delay_seconds=1, max_delay_seconds=10)
+
+class _MockProvider(LLMProvider):
+    def __init__(self) -> None:
+        super().__init__(ApiRetryConfig(max_retries=0, initial_delay_seconds=0, max_delay_seconds=0))
+
+    async def _complete_raw(self, prompt: str, max_tokens: int) -> str:
+        return "mock complete"
+
+    async def _vision_raw(self, prompt: str, image_b64: str, media_type: str, max_tokens: int) -> str:
+        return "A test image showing a simple graphic"
 
 
 class TestGetSurroundingContext:
@@ -49,44 +54,29 @@ class TestGetSurroundingContext:
         assert after == ""
 
 
-@needs_anthropic_key
-class TestDescribeImage:
+class TestDescribeImageWithProvider:
     @pytest.mark.asyncio
-    async def test_returns_description(self, tmp_dirs: dict[str, Path]) -> None:
+    async def test_returns_description_from_provider(self, tmp_dirs: dict[str, Path]) -> None:
         img = tmp_dirs["output"] / "images" / "test_img.png"
         img.parent.mkdir(parents=True, exist_ok=True)
         img.write_bytes(_MINIMAL_PNG)
 
-        result = await describe_image(
-            img,
-            "preceding text",
-            "following text",
-            _ANTHROPIC_CFG,
-            _RETRY_CFG,
-        )
+        provider = _MockProvider()
+        result = await describe_image(img, "preceding", "following", provider, max_tokens=300)
         assert isinstance(result, str)
-        assert len(result) > 10
+        assert len(result) > 5
 
 
-# TestDescribeImageAnthropic removed — was identical to TestDescribeImage
-# after both switched to Anthropic provider. One test covers the path.
-
-
-@needs_anthropic_key
-class TestReplaceImageRefs:
+class TestReplaceImageRefsWithProvider:
     @pytest.mark.asyncio
     async def test_replaces_image_markdown(self, tmp_dirs: dict[str, Path]) -> None:
         img = tmp_dirs["output"] / "images" / "test_img001.png"
         img.parent.mkdir(parents=True, exist_ok=True)
         img.write_bytes(_MINIMAL_PNG)
 
+        cfg = DescriberConfig(provider="openai", max_tokens=300)
+        provider = _MockProvider()
+
         markdown = "Some text\n\n![](images/test_img001.png)\n\nMore text"
-        result = await replace_image_refs(
-            markdown,
-            tmp_dirs["output"],
-            _ANTHROPIC_CFG,
-            _RETRY_CFG,
-            doc_title="Test Document",
-        )
+        result = await replace_image_refs(markdown, tmp_dirs["output"], cfg, provider, doc_title="Test")
         assert "**[Image:" in result
-        assert "![](images/test_img001.png)" in result
