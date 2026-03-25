@@ -134,3 +134,23 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: uv run pytest tests/test_full_system.py -v --tb=short
+
+  graph-query:
+    needs: [e2e-anthropic]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - run: uv sync --dev
+
+      # This test ingests sample.pdf (calls OpenAI embedding API),
+      # then queries the graph and judges the answer with Claude Haiku.
+      - name: Graph query E2E test with LLM judge
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: uv run pytest tests/test_graph_query.py -v --tb=short
