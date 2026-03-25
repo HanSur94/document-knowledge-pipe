@@ -164,21 +164,21 @@ class TestGraphQuery:
         """Ingest PDF -> query graph -> LLM judge evaluates answer quality."""
         cfg = load_config(graph_query_config)
 
-        pdf = FIXTURES / "sample.pdf"
+        pdf = FIXTURES / "real-world" / "invoice.pdf"
         if not pdf.exists():
-            pytest.skip("sample.pdf fixture not found")
+            pytest.skip("invoice.pdf fixture not found")
 
         # Stage 1: Ingest document into graph
         success = await process_file(pdf, cfg)
-        assert success, "Pipeline failed to process sample.pdf"
+        assert success, "Pipeline failed to process invoice.pdf"
 
         # Read generated markdown for judge context
-        md_path = cfg.output_dir / "markdown" / "sample.md"
+        md_path = cfg.output_dir / "markdown" / "invoice.md"
         assert md_path.exists(), "Markdown file not created"
         markdown = md_path.read_text()
 
         # Stage 2: Query the graph
-        question = "What is this document about?"
+        question = "What products and customer details are in the invoice?"
         answer = await query_graph(question, cfg.graph)
 
         assert answer is not None, "query_graph returned None (error)"
