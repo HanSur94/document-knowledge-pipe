@@ -1,7 +1,7 @@
 # Full Pipeline Demo & Graph Query — Design Spec
 
 **Date:** 2026-03-25
-**Status:** Draft
+**Status:** Approved
 
 ## Problem
 
@@ -30,15 +30,15 @@ async def query_graph(
     question: str,
     cfg: GraphConfig,
     mode: str = "mix",
-) -> str:
+) -> str | None:
 ```
 
 ### Behavior
 
 - Creates a LightRAG instance via the existing `_get_rag_instance(cfg)`.
-- Calls `rag.aquery(question, QueryParam(mode=mode))`.
-- Returns the answer string on success.
-- On failure, logs the error and returns `""`.
+- Calls `rag.aquery(question, QueryParam(mode=mode))` with `stream=False` (the default).
+- Guards the return type: if the result is not a `str` (e.g. `AsyncIterator` from a streaming call), raises `TypeError`. This ensures callers never silently receive an iterator.
+- Returns the answer string on success, or `None` on failure.
 
 ### Parameters
 
@@ -46,11 +46,15 @@ async def query_graph(
 |-------|------|---------|-------|
 | `question` | `str` | required | The natural-language query |
 | `cfg` | `GraphConfig` | required | Same config used for ingestion |
-| `mode` | `str` | `"mix"` | LightRAG query mode: `local`, `global`, `hybrid`, `mix` |
+| `mode` | `str` | `"mix"` | LightRAG query mode: `local`, `global`, `hybrid`, `naive`, `mix`, `bypass` |
+
+### Return type
+
+`str | None` — returns the answer string on success, `None` on failure (exception). This distinguishes "the graph answered with nothing useful" (`""`) from "an error occurred" (`None`).
 
 ### Error handling
 
-Wraps the entire call in try/except, logs to `docpipe.graph` logger, returns empty string. Matches the pattern used by `ingest_document()`.
+Wraps the entire call in try/except, logs to `docpipe.graph` logger, returns `None`. Matches the pattern used by `ingest_document()` (which returns `bool`).
 
 ---
 
@@ -66,8 +70,9 @@ docpipe query [--config config.yaml] [--mode mix] "What topics are covered?"
 
 - `@main.command()`
 - `--config` option (default `config.yaml`, same as other commands)
-- `--mode` option (default `"mix"`, type `click.Choice(["local", "global", "hybrid", "mix"])`)
+- `--mode` option (default `"mix"`, type `click.Choice(["local", "global", "hybrid", "naive", "mix", "bypass"])`)
 - `QUESTION` argument (required, type `str`)
+- **Import change:** Update `cli.py` line 18 from `from docpipe.graph import rebuild_graph` to `from docpipe.graph import query_graph, rebuild_graph`.
 
 ### Behavior
 
@@ -75,7 +80,7 @@ docpipe query [--config config.yaml] [--mode mix] "What topics are covered?"
 2. Set up logging via `_setup_logging()`.
 3. Call `asyncio.run(query_graph(question, cfg.graph, mode))`.
 4. Print the result to stdout via `console.print()`.
-5. If result is empty, print an error message and exit with code 1.
+5. If result is `None`, print an error message and exit with code 1.
 
 ### No lockfile
 
@@ -97,17 +102,23 @@ Replaces the existing script. Six sections:
 - Show extracted images count.
 
 ### Feature 3: Batch Ingestion
+- **Note:** Before this step, `kaggle_medium.pdf` has already been moved out of `input/` to a holding area (see Feature 4 setup below), so batch ingest processes everything except that file.
 - `docpipe ingest --config config.yaml` (all files).
 - Print summary of files processed.
 
 ### Feature 4: Watcher Mode
-- Write a temporary config override with `debounce_seconds: 5` (fast for demo).
-- Move one file (`kaggle_medium.pdf`) out of `input/` into a holding area before batch ingest.
-- Start `docpipe run --config watcher_config.yaml` in background (`&`, capture PID).
+
+**Important:** The watcher must start only after batch ingestion completes (sequential in the script via `set -euo pipefail`), because both `docpipe ingest` and `docpipe run` acquire the lockfile.
+
+**Setup (before Feature 3):** Move `kaggle_medium.pdf` out of `input/` into a holding area so it's available for the watcher demo.
+
+- Generate a temporary `watcher_demo_config.yaml` using a Python one-liner (see below).
+- Start `docpipe run --config watcher_demo_config.yaml` in background (`&`, capture PID).
+- Register a trap: `trap 'kill $WATCHER_PID 2>/dev/null || true' EXIT` to prevent leaked processes on script failure.
 - Copy the held-back file into `input/`.
-- Poll `output/status.json` for the file to appear (timeout 120s).
+- Poll `output/status.json` by parsing JSON and checking for the specific file with `"status": "done"` (not just file existence). Timeout 120s.
 - Print confirmation that the watcher picked it up.
-- Kill the watcher process (`kill $PID`), clean up temp config.
+- Kill the watcher process (`kill $WATCHER_PID`), remove the trap, clean up temp config.
 
 ### Feature 5: Graph Query
 - Run 2 queries via `docpipe query`:
@@ -121,11 +132,16 @@ Replaces the existing script. Six sections:
 
 ### Config changes for watcher demo
 
-The script generates a temporary `watcher_demo_config.yaml` that is identical to `config.yaml` but with:
-```yaml
-watcher:
-  debounce_seconds: 5
-  max_wait_seconds: 30
+The script generates a temporary `watcher_demo_config.yaml` via a Python one-liner:
+
+```bash
+python3 -c '
+import yaml, pathlib
+cfg = yaml.safe_load(pathlib.Path("config.yaml").read_text())
+cfg.setdefault("watcher", {})["debounce_seconds"] = 5
+cfg.setdefault("watcher", {})["max_wait_seconds"] = 30
+pathlib.Path("watcher_demo_config.yaml").write_text(yaml.dump(cfg))
+'
 ```
 
 This file is deleted at the end of the watcher section.
@@ -141,6 +157,7 @@ Structure follows `test_e2e_anthropic.py` conventions.
 #### Fixture: `graph_query_config`
 - Creates a tmp_path config with Anthropic describer + OpenAI graph (same as existing e2e tests).
 - Points input_dir at `tests/fixtures/`.
+- Creates output subdirectories: `output/`, `output/markdown/`, `output/images/` (matching `anthropic_config` fixture pattern).
 
 #### Test: `test_graph_query_with_llm_judge`
 1. Ingest `sample.pdf` via `process_file()`.
@@ -181,16 +198,18 @@ Respond with ONLY valid JSON:
 
 #### Judge implementation
 Reuses the same pattern as `test_e2e_anthropic.py`:
-- Claude Haiku as judge model.
+- Claude Haiku as judge model, `max_tokens=500`.
 - Truncate markdown to 6000 chars with safe image-block handling.
 - Parse JSON response with code-block fallback.
+- Import `needs_anthropic_key`, `needs_openai_key` from `conftest`.
 
 ### CI job in `doc-tests.yml`
 
-New job `graph-query`:
+New job `graph-query`. Runs after `e2e-anthropic` to avoid wasting API budget if the base pipeline is broken:
 
 ```yaml
 graph-query:
+  needs: [e2e-anthropic]
   runs-on: ubuntu-latest
   steps:
     - uses: actions/checkout@v4
@@ -198,7 +217,9 @@ graph-query:
       with:
         python-version: "3.12"
     - run: uv sync --dev
-    - name: Graph query test with LLM judge
+    # This test ingests sample.pdf (calls OpenAI embedding API),
+    # then queries the graph and judges the answer with Claude Haiku.
+    - name: Graph query E2E test with LLM judge
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
