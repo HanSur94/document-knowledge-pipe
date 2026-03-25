@@ -15,7 +15,7 @@ from rich.live import Live
 from rich.table import Table
 
 from docpipe.config import DocpipeConfig, load_config
-from docpipe.graph import rebuild_graph
+from docpipe.graph import query_graph, rebuild_graph
 from docpipe.pipeline import Lockfile, cleanup_orphans, process_file
 from docpipe.registry import RegistryEntry, update_registry
 from docpipe.status import StatusTracker
@@ -239,3 +239,25 @@ def status(config_path: str) -> None:
     tracker = StatusTracker(cfg.output_dir)
     table = _build_status_table(tracker, cfg)
     console.print(table)
+
+
+@main.command()
+@click.option("--config", "config_path", default=DEFAULT_CONFIG, help="Path to config.yaml")
+@click.option(
+    "--mode",
+    default="mix",
+    type=click.Choice(["local", "global", "hybrid", "naive", "mix", "bypass"]),
+    help="Query mode",
+)
+@click.argument("question")
+def query(config_path: str, mode: str, question: str) -> None:
+    """Query the knowledge graph."""
+    cfg = load_config(Path(config_path))
+    _setup_logging(cfg)
+
+    result = asyncio.run(query_graph(question, cfg.graph, mode))
+    if result is None:
+        console.print("[red]Query failed. Check logs for details.[/red]")
+        sys.exit(1)
+
+    console.print(result)
