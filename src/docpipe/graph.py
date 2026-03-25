@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -19,23 +20,36 @@ async def _get_rag_instance(cfg: GraphConfig) -> Any:  # noqa: ANN401
     from lightrag.llm.openai import openai_complete, openai_embed
     from lightrag.utils import EmbeddingFunc
 
-    # Reset LightRAG global state so locks bind to the current event loop.
     finalize_share_data()
 
     store_dir = Path(cfg.store_dir)
     store_dir.mkdir(parents=True, exist_ok=True)
 
+    # Get provider-specific config
+    if cfg.provider == "azure":
+        pcfg = cfg.azure
+        # Set env vars for LightRAG's internal Azure OpenAI client
+        os.environ["AZURE_OPENAI_ENDPOINT"] = pcfg.endpoint
+        os.environ["OPENAI_API_VERSION"] = pcfg.api_version
+        # AZURE_OPENAI_API_KEY should already be in env
+        model_name = pcfg.deployment
+        embedding_model = pcfg.embedding_deployment
+    else:
+        pcfg = cfg.openai
+        model_name = pcfg.model
+        embedding_model = pcfg.embedding_model
+
     embedding = EmbeddingFunc(
-        embedding_dim=1536,
+        embedding_dim=pcfg.embedding_dim,
         func=openai_embed.func,
         max_token_size=8192,
-        model_name=cfg.embedding_model,
+        model_name=embedding_model,
     )
 
     rag = LightRAG(
         working_dir=str(store_dir),
         llm_model_func=openai_complete,
-        llm_model_name=cfg.model,
+        llm_model_name=model_name,
         embedding_func=embedding,
         chunk_token_size=cfg.chunk_size,
         chunk_overlap_token_size=cfg.chunk_overlap,

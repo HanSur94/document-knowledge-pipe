@@ -72,11 +72,12 @@ def sample_config(tmp_dirs: dict[str, Path]) -> dict[str, Any]:
             "dpi": 150,
         },
         "describer": {
-            "model": "gpt-4o-mini",
+            "provider": "openai",
             "max_tokens": 300,
             "include_context": True,
             "context_chars": 500,
             "batch_size": 5,
+            "openai": {"model": "gpt-4o-mini"},
         },
         "registry": {
             "filename": "registry.md",
@@ -92,13 +93,17 @@ def sample_config(tmp_dirs: dict[str, Path]) -> dict[str, Any]:
             ],
         },
         "graph": {
+            "provider": "openai",
             "storage": "file",
             "store_dir": str(tmp_dirs["output"] / "lightrag_store"),
-            "model": "gpt-4o-mini",
-            "embedding_model": "text-embedding-3-small",
             "max_tokens": 4096,
             "chunk_size": 1200,
             "chunk_overlap": 100,
+            "openai": {
+                "model": "gpt-4o-mini",
+                "embedding_model": "text-embedding-3-small",
+                "embedding_dim": 1536,
+            },
         },
         "api_retry": {
             "max_retries": 3,

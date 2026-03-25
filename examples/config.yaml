@@ -12,24 +12,34 @@ watcher:
 
 # Describer — choose your LLM provider
 describer:
-  # Option A: OpenAI (default)
+  # Set provider to "openai", "azure", or "anthropic"
   provider: "openai"
-  model: "gpt-4o-mini"
-
-  # Option B: Anthropic (uncomment below, comment above)
-  # provider: "anthropic"
-  # model: "claude-haiku-4-5-20251001"
-
   max_tokens: 300
   include_context: true
   context_chars: 500
 
-# Knowledge Graph
+  openai:
+    model: "gpt-4o-mini"
+
+  # azure:
+  #   model: "gpt-4o-mini"
+  #   endpoint: "https://YOUR-INSTANCE.openai.azure.com"
+  #   deployment: "YOUR-DEPLOYMENT"
+  #   api_version: "2024-06-01"
+
+  # anthropic:
+  #   model: "claude-haiku-4-5-20251001"
+
+# Knowledge Graph (OpenAI or Azure only)
 graph:
+  provider: "openai"
   storage: "file"
   store_dir: "./output/lightrag_store"
-  model: "gpt-4o-mini"
-  embedding_model: "text-embedding-3-small"
+
+  openai:
+    model: "gpt-4o-mini"
+    embedding_model: "text-embedding-3-small"
+    embedding_dim: 1536
 
 # Logging
 logging:

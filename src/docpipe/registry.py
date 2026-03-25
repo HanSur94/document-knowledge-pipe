@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
-import openai
-
-from docpipe.config import ApiRetryConfig, RegistryConfig
+from docpipe.config import RegistryConfig
+from docpipe.providers.base import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +75,9 @@ def update_registry(
 async def generate_summary(
     markdown: str,
     cfg: RegistryConfig,
-    retry_cfg: ApiRetryConfig,
-    provider: str = "openai",
+    provider: LLMProvider,
 ) -> tuple[str, str]:
-    """Use a vision LLM to generate a summary and topic tags."""
+    """Use an LLM to generate a summary and topic tags."""
     prompt = (
         f"Summarize this document in at most {cfg.summary_max_words} words. "
         "Then list 2-5 topic tags (comma-separated). "
@@ -91,52 +87,20 @@ async def generate_summary(
         f"Document:\n{markdown[:3000]}"
     )
 
-    delay = retry_cfg.initial_delay_seconds
-    for attempt in range(retry_cfg.max_retries + 1):
-        try:
-            content: str
-            if provider == "anthropic":
-                import anthropic
+    try:
+        content = await provider.complete(prompt, max_tokens=200)
+    except Exception:
+        logger.error("Summary generation failed")
+        return "Summary unavailable", "-"
 
-                anthropic_client = anthropic.AsyncAnthropic(
-                    api_key=os.environ.get("ANTHROPIC_API_KEY", "test-key")
-                )
-                anthropic_response = await anthropic_client.messages.create(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=200,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                first_block = anthropic_response.content[0]
-                content = (
-                    first_block.text if isinstance(first_block, anthropic.types.TextBlock) else ""
-                )
-            else:
-                openai_client = openai.AsyncOpenAI(
-                    api_key=os.environ.get("OPENAI_API_KEY", "test-key")
-                )
-                openai_response = await openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    max_tokens=200,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                content = openai_response.choices[0].message.content or ""
-            summary = ""
-            topics = ""
-            for line in content.splitlines():
-                if line.startswith("SUMMARY:"):
-                    summary = line.replace("SUMMARY:", "").strip()
-                elif line.startswith("TOPICS:"):
-                    topics = line.replace("TOPICS:", "").strip()
-            return summary or "No summary available", topics or "-"
-        except Exception as e:
-            if attempt == retry_cfg.max_retries:
-                logger.error("Summary generation failed after %d retries: %s", attempt + 1, e)
-                return "Summary unavailable", "-"
-            logger.warning("Summary API attempt %d failed: %s", attempt + 1, e)
-            await asyncio.sleep(delay)
-            delay = min(delay * 2, retry_cfg.max_delay_seconds)
-
-    return "Summary unavailable", "-"
+    summary = ""
+    topics = ""
+    for line in content.splitlines():
+        if line.startswith("SUMMARY:"):
+            summary = line.replace("SUMMARY:", "").strip()
+        elif line.startswith("TOPICS:"):
+            topics = line.replace("TOPICS:", "").strip()
+    return summary or "No summary available", topics or "-"
 
 
 def build_registry(output_dir: Path) -> str:

@@ -38,11 +38,13 @@ def pipeline_config(tmp_path: Path) -> Path:
         "output_dir": str(output_dir),
         "describer": {
             "provider": "anthropic",
-            "model": "claude-haiku-4-5-20251001",
             "max_tokens": 300,
             "include_context": True,
             "context_chars": 500,
             "batch_size": 5,
+            "anthropic": {
+                "model": "claude-haiku-4-5-20251001",
+            },
         },
         "registry": {
             "filename": "registry.md",
@@ -58,13 +60,17 @@ def pipeline_config(tmp_path: Path) -> Path:
             ],
         },
         "graph": {
+            "provider": "openai",
             "storage": "file",
             "store_dir": str(output_dir / "lightrag_store"),
-            "model": "gpt-4o-mini",
-            "embedding_model": "text-embedding-3-small",
             "max_tokens": 4096,
             "chunk_size": 1200,
             "chunk_overlap": 100,
+            "openai": {
+                "model": "gpt-4o-mini",
+                "embedding_model": "text-embedding-3-small",
+                "embedding_dim": 1536,
+            },
         },
         "api_retry": {
             "max_retries": 2,

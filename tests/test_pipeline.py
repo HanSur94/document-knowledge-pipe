@@ -59,17 +59,23 @@ class TestProcessFile:
             "output_dir": str(tmp_dirs["output"]),
             "describer": {
                 "provider": "anthropic",
-                "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 300,
                 "include_context": True,
                 "context_chars": 500,
                 "batch_size": 5,
+                "anthropic": {
+                    "model": "claude-haiku-4-5-20251001",
+                },
             },
             "graph": {
+                "provider": "openai",
                 "storage": "file",
                 "store_dir": str(tmp_dirs["output"] / "lightrag_store"),
-                "model": "gpt-4o-mini",
-                "embedding_model": "text-embedding-3-small",
+                "openai": {
+                    "model": "gpt-4o-mini",
+                    "embedding_model": "text-embedding-3-small",
+                    "embedding_dim": 1536,
+                },
             },
             "api_retry": {
                 "max_retries": 2,
