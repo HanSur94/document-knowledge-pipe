@@ -1,4 +1,4 @@
-"""LightRAG knowledge graph ingestion."""
+"""LightRAG knowledge graph ingestion and querying."""
 
 from __future__ import annotations
 
