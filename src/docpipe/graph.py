@@ -100,3 +100,29 @@ async def rebuild_graph(markdown_dir: Path, cfg: GraphConfig) -> int:
 
     logger.info("Graph rebuilt: %d documents ingested", count)
     return count
+
+
+async def query_graph(
+    question: str,
+    cfg: GraphConfig,
+    mode: str = "mix",
+) -> str | None:
+    """Query the LightRAG knowledge graph.
+
+    Returns the answer string on success, None on failure.
+    """
+    try:
+        from lightrag import QueryParam
+
+        rag = await _get_rag_instance(cfg)
+        result = await rag.aquery(question, QueryParam(mode=mode))
+
+        if not isinstance(result, str):
+            raise TypeError(f"Expected str from aquery, got {type(result).__name__}")
+
+        return result
+    except TypeError:
+        raise
+    except Exception as e:
+        logger.error("LightRAG query failed: %s", e)
+        return None
