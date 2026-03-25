@@ -40,9 +40,7 @@ class TestQueryCommand:
 
         with patch("docpipe.cli.query_graph", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = "The documents cover data science."
-            result = runner.invoke(
-                main, ["query", "--config", str(cfg_path), "What topics?"]
-            )
+            result = runner.invoke(main, ["query", "--config", str(cfg_path), "What topics?"])
 
         assert result.exit_code == 0
         assert "data science" in result.output
@@ -76,9 +74,7 @@ class TestQueryCommand:
 
         with patch("docpipe.cli.query_graph", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = None
-            result = runner.invoke(
-                main, ["query", "--config", str(cfg_path), "What topics?"]
-            )
+            result = runner.invoke(main, ["query", "--config", str(cfg_path), "What topics?"])
 
         assert result.exit_code == 1
 
